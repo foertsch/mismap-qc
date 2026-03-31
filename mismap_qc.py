@@ -883,5 +883,221 @@ def missing_matrix_html(
     return html
 
 
+# ---------------------------------------------------------------------------
+# Abundance-by-missingness density plot
+# ---------------------------------------------------------------------------
+def missing_abundance_density(
+    df: pd.DataFrame,
+    *,
+    groups: pd.Series | np.ndarray | list | None = None,
+    max_na_levels: int = 6,
+    title: str = "Abundance by Missingness",
+    xlabel: str = "Mean Abundance",
+    ylabel: str = "Density",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    palette: list[str] | None = None,
+    alpha: float = 0.7,
+    linewidth: float = 1.5,
+    legend_title: str = "# Missing",
+    save: str | None = None,
+    dpi: int = 150,
+) -> plt.Figure:
+    """
+    Density plot of mean abundance stratified by missingness count.
+
+    This diagnostic plot reveals whether missing data follows the MNAR
+    (Missing Not At Random) pattern typical of proteomics/mass-spec data,
+    where low-abundance features are more likely to be missing due to
+    detection limits.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Genes/proteins (rows) x Samples (columns). NaN = missing.
+    groups : Series, array, or list, optional
+        Group labels for each sample (same length as df.columns).
+        If provided, creates faceted subplots, one per group.
+    max_na_levels : int
+        Maximum number of distinct missingness levels to show (default 6).
+        Higher counts are binned into "N+" category.
+    title : str
+        Figure title.
+    xlabel, ylabel : str
+        Axis labels.
+    figsize : tuple, optional
+        Figure size. Auto-calculated if None.
+    fontsize : int
+        Base font size.
+    palette : list[str], optional
+        Colors for missingness levels. Uses built-in palette if None.
+    alpha : float
+        Line/fill transparency (default 0.7).
+    linewidth : float
+        Density line width (default 1.5).
+    legend_title : str
+        Legend title (default "# Missing").
+    save : str, optional
+        Save figure to this path.
+    dpi : int
+        Save resolution (default 150).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+
+    Examples
+    --------
+    >>> fig = missing_abundance_density(df)
+    >>> fig = missing_abundance_density(df, groups=df.columns.get_level_values("Condition"))
+    """
+    n_genes, n_samples = df.shape
+
+    # Compute per-gene metrics
+    na_counts = df.isna().sum(axis=1).values
+    mean_abundance = df.mean(axis=1, skipna=True).values
+
+    # Filter out genes with all missing (no valid mean)
+    valid_mask = ~np.isnan(mean_abundance)
+    na_counts = na_counts[valid_mask]
+    mean_abundance = mean_abundance[valid_mask]
+    gene_idx = np.where(valid_mask)[0]
+
+    # Bin high NA counts
+    na_labels = na_counts.copy()
+    if max_na_levels is not None and na_counts.max() >= max_na_levels:
+        na_labels = np.where(
+            na_counts >= max_na_levels,
+            max_na_levels,
+            na_counts
+        )
+
+    unique_na = np.sort(np.unique(na_labels))
+
+    # Palette
+    if palette is None:
+        # Use a sequential colormap for missingness levels
+        cmap = plt.cm.viridis_r
+        palette = [mpl.colors.to_hex(cmap(i / max(len(unique_na) - 1, 1)))
+                   for i in range(len(unique_na))]
+
+    # Handle faceting by groups
+    if groups is not None:
+        groups = np.asarray(groups)
+        unique_groups = list(dict.fromkeys(groups))
+        n_groups = len(unique_groups)
+
+        if figsize is None:
+            figsize = (5 * n_groups, 4)
+
+        fig, axes = plt.subplots(1, n_groups, figsize=figsize,
+                                 sharey=True, facecolor="white")
+        if n_groups == 1:
+            axes = [axes]
+
+        for ax, grp in zip(axes, unique_groups):
+            # Get samples in this group
+            grp_mask = groups == grp
+            grp_samples = np.where(grp_mask)[0]
+
+            # Recompute metrics for this group's samples
+            df_grp = df.iloc[:, grp_samples]
+            grp_na = df_grp.isna().sum(axis=1).values
+            grp_mean = df_grp.mean(axis=1, skipna=True).values
+
+            valid = ~np.isnan(grp_mean)
+            grp_na = grp_na[valid]
+            grp_mean = grp_mean[valid]
+
+            # Bin
+            grp_na_labels = grp_na.copy()
+            if max_na_levels is not None and grp_na.max() >= max_na_levels:
+                grp_na_labels = np.where(
+                    grp_na >= max_na_levels, max_na_levels, grp_na
+                )
+
+            grp_unique_na = np.sort(np.unique(grp_na_labels))
+
+            for i, na_val in enumerate(grp_unique_na):
+                mask = grp_na_labels == na_val
+                if mask.sum() < 2:
+                    continue
+                values = grp_mean[mask]
+
+                # KDE
+                from scipy import stats
+                try:
+                    kde = stats.gaussian_kde(values)
+                    x_range = np.linspace(values.min(), values.max(), 200)
+                    density = kde(x_range)
+
+                    label = f"{na_val}" if na_val < max_na_levels else f"{max_na_levels}+"
+                    color = palette[min(i, len(palette) - 1)]
+                    ax.fill_between(x_range, density, alpha=alpha * 0.4, color=color)
+                    ax.plot(x_range, density, color=color, linewidth=linewidth,
+                            label=label)
+                except np.linalg.LinAlgError:
+                    # KDE can fail with singular matrix
+                    pass
+
+            ax.set_title(str(grp), fontsize=fontsize + 1)
+            ax.set_xlabel(xlabel, fontsize=fontsize)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        axes[0].set_ylabel(ylabel, fontsize=fontsize)
+
+        # Shared legend
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, title=legend_title,
+                   loc="upper right", bbox_to_anchor=(0.98, 0.95),
+                   fontsize=fontsize - 1, title_fontsize=fontsize)
+
+    else:
+        # Single panel
+        if figsize is None:
+            figsize = (7, 5)
+
+        fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+
+        from scipy import stats
+
+        for i, na_val in enumerate(unique_na):
+            mask = na_labels == na_val
+            if mask.sum() < 2:
+                continue
+            values = mean_abundance[mask]
+
+            try:
+                kde = stats.gaussian_kde(values)
+                x_range = np.linspace(values.min(), values.max(), 200)
+                density = kde(x_range)
+
+                label = f"{na_val}" if na_val < max_na_levels else f"{max_na_levels}+"
+                color = palette[min(i, len(palette) - 1)]
+                ax.fill_between(x_range, density, alpha=alpha * 0.4, color=color)
+                ax.plot(x_range, density, color=color, linewidth=linewidth,
+                        label=label)
+            except np.linalg.LinAlgError:
+                pass
+
+        ax.set_xlabel(xlabel, fontsize=fontsize)
+        ax.set_ylabel(ylabel, fontsize=fontsize)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.legend(title=legend_title, fontsize=fontsize - 1,
+                  title_fontsize=fontsize)
+
+    if title:
+        fig.suptitle(title, fontsize=fontsize + 2, fontweight="bold", y=1.02)
+
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    return fig
+
+
 # Keep old name as alias
 rna_missing_matrix = missing_matrix

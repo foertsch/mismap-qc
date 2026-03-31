@@ -1,8 +1,12 @@
 # mismap-qc
 
-A prettier missing-data matrix for RNA-Seq QC, inspired by [missingno](https://github.com/ResidentMario/missingno). Shows which genes are detected vs missing across samples, with multi-level colour annotations and hierarchical clustering.
+Missing-data matrix for RNA-Seq and proteomics QC. Shows which features (genes, proteins) are detected vs missing across samples, with hierarchical clustering and multi-level colour annotation strips for experimental metadata.
 
 ![demo](output/demo_full.png)
+
+## Examples
+
+- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** — real-world proteomics tutorial using public CPTAC LUAD data (~100 tumour/normal samples). Shows how missingness clusters by tumour/normal status and identifies potential QC outliers.
 
 ## Quick start
 
