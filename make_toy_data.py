@@ -7,7 +7,7 @@
 # ///
 """
 Generate a toy RNA-Seq dataset with structured missingness for testing
-the pretty_missing visualization.
+the mismap_qc visualization.
 
 Output: data/toy_rnaseq.csv (MultiIndex columns preserved via header rows)
 """

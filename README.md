@@ -1,4 +1,4 @@
-# pretty-missing
+# mismap-qc
 
 A prettier missing-data matrix for RNA-Seq QC, inspired by [missingno](https://github.com/ResidentMario/missingno). Shows which genes are detected vs missing across samples, with multi-level colour annotations and hierarchical clustering.
 
@@ -16,7 +16,7 @@ Or import directly:
 
 ```python
 import pandas as pd
-from pretty_missing import missing_matrix
+from mismap_qc import missing_matrix
 
 df = pd.read_csv("data/toy_rnaseq.csv", index_col=0, header=[0, 1, 2])
 fig = missing_matrix(df, title="Gene Detection Matrix")
@@ -167,7 +167,7 @@ Each panel is independently clustered. The split level is automatically removed 
 Plotly-based interactive version with hover tooltips showing gene name, sample ID, all annotation levels, and detection status.
 
 ```python
-from pretty_missing import missing_matrix_html
+from mismap_qc import missing_matrix_html
 
 missing_matrix_html(
     df,

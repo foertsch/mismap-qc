@@ -8,13 +8,13 @@
 #     "plotly",
 # ]
 # ///
-"""Demo: showcases all major features of pretty_missing."""
+"""Demo: showcases all major features of mismap_qc."""
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
-from pretty_missing import missing_matrix, missing_matrix_html
+from mismap_qc import missing_matrix, missing_matrix_html
 
 data_path = Path(__file__).parent / "data" / "toy_rnaseq.csv"
 out_dir = Path(__file__).parent / "output"
