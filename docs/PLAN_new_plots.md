@@ -1,16 +1,23 @@
 # Plan: New Plot Functions for mismap-qc
 
 Date: 2026-03-31
-Status: Planning
+Updated: 2026-04-01
+Status: In progress
 
 ---
 
 ## Overview
 
-Five new diagnostic plots to expand mismap-qc beyond the nullity matrix into a more
+Nine new diagnostic plots to expand mismap-qc beyond the nullity matrix into a
 complete missing-data QC toolkit for proteomics and transcriptomics. Priority order
 is based on: (1) gap in existing Python tools, (2) direct actionability for users,
 (3) implementation complexity.
+
+**Wave 1** (current): `completeness_bars`, `detection_waterfall`, `missing_runorder`,
+`missing_mechanism`, `comissing_heatmap`
+
+**Wave 2**: `missing_upset`, `sample_outlier_score`, `batch_missing_test`,
+`missing_summary_report`
 
 ---
 
@@ -245,15 +252,214 @@ missing_runorder(
 
 ---
 
+---
+
+## Plot 6 — UpSet Plot of Co-Missingness `missing_upset()`
+
+**Priority: HIGH (Wave 2)**
+
+### What it shows
+UpSet plot of which combinations of samples share missing features. For each
+intersection of samples (or groups), shows how many features are missing in
+exactly that combination and no others.
+
+### Why it matters
+In small-n experiments (e.g. n=3 per group), knowing "do these two replicates
+always lose the same proteins together?" is critical for distinguishing technical
+dropout from biology. Bar charts can't show intersection structure; Venn diagrams
+break down beyond 3 sets. UpSet is the right visualisation.
+
+### No equivalent in Python
+`upsetplot` exists but nobody wraps it for missing data specifically. This would
+be a first.
+
+### API sketch
+```python
+missing_upset(
+    df,                          # features x samples, NaN = missing
+    by="sample",                 # "sample" (one set per sample) or group label level
+    min_size=1,                  # minimum intersection size to show
+    title="Co-Missingness UpSet Plot",
+    save=None,
+    dpi=150,
+) -> plt.Figure
+```
+
+### Layout
+- Standard UpSet layout: bar chart on top (intersection size), matrix below
+  (which samples are in that intersection), bar chart on left (per-sample
+  total missingness)
+- When `by` is a MultiIndex level name, one set per group rather than per sample
+
+### Implementation notes
+- Use `upsetplot` as a dependency (optional extra: `pip install mismap-qc[upset]`)
+- Build the binary membership matrix from `df.isna()` then pass to `upsetplot.from_memberships()`
+- For group mode: a feature counts as "missing in group X" if it is missing
+  in ≥50% of samples in that group
+
+---
+
+## Plot 7 — Sample Outlier Score `sample_outlier_score()`
+
+**Priority: HIGH (Wave 2)**
+
+### What it shows
+Per-sample missingness rate compared to other samples in the same group,
+expressed as a z-score. Flags statistical outliers — samples whose missingness
+is unexpectedly high or low relative to group peers.
+
+### Why it matters
+Users currently do this manually in Excel: compute per-sample % missing, sort,
+eyeball. This function makes the decision data-driven and reproducible, and
+returns a table they can act on directly (e.g. drop flagged samples before
+imputation).
+
+### No equivalent in Python
+Nothing in `missingno` or any proteomics QC package does this.
+
+### API sketch
+```python
+sample_outlier_score(
+    df,                          # features x samples, NaN = missing
+    group_level=None,            # MultiIndex level to compute z-scores within groups
+    threshold=2.5,               # flag samples with |z| > threshold
+    title="Sample Missingness Outlier Score",
+    save=None,
+    dpi=150,
+) -> tuple[plt.Figure, pd.DataFrame]  # figure + per-sample table
+```
+
+### Layout
+- One point per sample, x = sample index (or run order), y = per-sample
+  missingness rate
+- Points beyond threshold coloured red and labelled
+- Dashed horizontal lines at mean ± threshold×SD
+- If `group_level` set: compute z-scores within each group separately,
+  colour points by group
+
+### Returns
+DataFrame with columns: `sample`, `group`, `missing_rate`, `z_score`, `flagged`
+
+### Implementation notes
+- `missing_rate = df.isna().mean(axis=0)`
+- Z-score within group: `(x - group_mean) / group_std`
+- Edge case: group with <3 samples → skip z-score, warn
+- Reuse `_assign_colors()` for group colours
+
+---
+
+## Plot 8 — Batch Missingness Test `batch_missing_test()`
+
+**Priority: MEDIUM (Wave 2)**
+
+### What it shows
+Volcano-style plot: for each feature, tests whether its missingness is
+significantly enriched in one condition/batch vs another using Fisher's exact
+test. X axis = log2 odds ratio, Y axis = -log10(p-value).
+
+### Why it matters
+A statistically principled alternative to eyeballing the matrix. Answers the
+question "which proteins are specifically absent in condition X?" without
+requiring imputation first. Currently not possible in any Python tool.
+
+### No equivalent in Python
+`protti` (R) has something similar. Nothing in Python.
+
+### API sketch
+```python
+batch_missing_test(
+    df,                          # features x samples, NaN = missing
+    group_level,                 # MultiIndex level defining the two groups to compare
+    group_a=None,                # label for group A (first group if None)
+    group_b=None,                # label for group B (second group if None)
+    alpha=0.05,                  # significance threshold
+    min_missing=2,               # minimum missing count to test (avoids 0-cell tables)
+    title="Batch Missingness Test",
+    save=None,
+    dpi=150,
+) -> tuple[plt.Figure, pd.DataFrame]
+```
+
+### Layout
+- Volcano plot: log2 OR on x, -log10(p) on y
+- Colour: significant + enriched in A = blue, significant + enriched in B = red,
+  non-significant = grey
+- Dashed vertical lines at log2 OR = ±1, dashed horizontal at -log10(alpha)
+- Label top N most significant features
+
+### Returns
+DataFrame with columns: `feature`, `log2_OR`, `p_value`, `q_value` (BH-corrected),
+`significant`, `enriched_in`
+
+### Implementation notes
+- `scipy.stats.fisher_exact` per feature (2×2 table: missing/present × group A/B)
+- BH correction via `statsmodels.stats.multitest.multipletests` or manual
+- Only test features with ≥`min_missing` missing values across both groups combined
+- Raise ValueError if group_level has more than 2 distinct values (only pairwise)
+
+---
+
+## Plot 9 — Summary QC Report `missing_summary_report()`
+
+**Priority: LOW (Wave 2, longer-term)**
+
+### What it shows
+Generates a self-contained HTML report combining all mismap-qc plots for a
+dataset into one document. Think MultiQC but specific to missing-data QC.
+
+### Why it matters
+Core facilities need shareable, standalone QC documents. One function call
+that produces a complete HTML report — with all plots, a summary table, and
+basic statistics — is the kind of feature that spreads a tool by word of mouth.
+
+### No equivalent in Python
+MultiQC exists but is pipeline-specific and not designed for custom missing-data
+analysis.
+
+### API sketch
+```python
+missing_summary_report(
+    df,                          # features x samples, NaN = missing
+    group_level=None,            # primary grouping for all group-aware plots
+    output="mismap_qc_report.html",
+    title="Missing Data QC Report",
+    dpi=100,
+) -> str  # path to saved HTML
+```
+
+### Layout
+Sections (each collapible):
+1. Dataset summary (shape, overall % missing, per-group table)
+2. Missingness matrix (static PNG embedded inline)
+3. Detection waterfall
+4. Per-group completeness bars
+5. Sample outlier scores (flagged samples highlighted)
+6. Batch missingness test (if group_level provided)
+7. Co-missingness heatmap
+
+### Implementation notes
+- Generate each plot as a PNG, base64-encode, embed in HTML template
+- No external dependencies for the HTML (self-contained)
+- Use Jinja2 template or simple f-string template
+- Requires `plotly` for interactive matrix section (optional)
+- Implement last — depends on all other functions being stable
+
+---
+
 ## Implementation Order
 
-Given complexity vs. impact:
-
-1. `completeness_bars()` — easiest, high visibility, replaces console output
+### Wave 1
+1. `completeness_bars()` — ✅ done
 2. `detection_waterfall()` — moderate complexity, fills biggest Python gap
 3. `missing_runorder()` — simple, useful for proteomics community
 4. `missing_mechanism()` — most complex, highest scientific value
 5. `comissing_heatmap()` — most niche, implement last
+
+### Wave 2
+6. `missing_upset()` — high impact for small-n experiments, needs `upsetplot`
+7. `sample_outlier_score()` — highly actionable, straightforward to implement
+8. `batch_missing_test()` — statistically rigorous, fills real gap
+9. `missing_summary_report()` — longer-term, depends on all others being stable
 
 ---
 
@@ -333,8 +539,15 @@ After implementation:
 
 ## Status
 
-- [ ] `completeness_bars()` — not started
+### Wave 1
+- [x] `completeness_bars()` — done
 - [ ] `detection_waterfall()` — not started
 - [ ] `missing_runorder()` — not started
 - [ ] `missing_mechanism()` — not started
 - [ ] `comissing_heatmap()` — not started
+
+### Wave 2
+- [ ] `missing_upset()` — not started
+- [ ] `sample_outlier_score()` — not started
+- [ ] `batch_missing_test()` — not started
+- [ ] `missing_summary_report()` — not started (depends on Wave 1 completion)

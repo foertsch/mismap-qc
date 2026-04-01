@@ -11,7 +11,7 @@ import pytest
 matplotlib.use("Agg")  # non-interactive backend for CI
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mismap_qc import missing_matrix, missing_matrix_html
+from mismap_qc import completeness_bars, missing_matrix, missing_matrix_html
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -137,3 +137,112 @@ def test_html_save_to_disk(tmp_path: Path):
     missing_matrix_html(make_flat_df(), save=str(out))
     assert out.exists()
     assert out.stat().st_size > 0
+
+
+# ── missing_matrix invert ─────────────────────────────────────────────────────
+
+
+def test_invert_swaps_colors():
+    import matplotlib.pyplot as plt
+
+    fig_normal = missing_matrix(make_flat_df())
+    fig_inverted = missing_matrix(make_flat_df(), invert=True)
+    assert isinstance(fig_inverted, plt.Figure)
+    plt.close("all")
+
+
+# ── completeness_bars ─────────────────────────────────────────────────────────
+
+
+def test_completeness_bars_multiindex():
+    import matplotlib.pyplot as plt
+
+    fig = completeness_bars(make_multiindex_df(), group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_flat_df():
+    """Flat df → treated as single 'All samples' group."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_bars(make_flat_df(), group_level=0)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_threshold():
+    import matplotlib.pyplot as plt
+
+    fig = completeness_bars(make_multiindex_df(), group_level="Condition",
+                            threshold=0.8)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_vertical():
+    import matplotlib.pyplot as plt
+
+    fig = completeness_bars(make_multiindex_df(), group_level="Condition",
+                            orientation="vertical")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_custom_colors():
+    import matplotlib.pyplot as plt
+
+    colors = {"Fresh": "#88CCEE", "Conditioned": "#CC6677"}
+    fig = completeness_bars(make_multiindex_df(), group_level="Condition",
+                            color=colors)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_all_missing():
+    """All-missing df should not crash (completeness = 0 for all groups)."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df()
+    df.iloc[:] = float("nan")
+    fig = completeness_bars(df, group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_all_present():
+    """All-present df should not crash (completeness = 1 for all groups)."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df()
+    df = df.fillna(1.0)
+    fig = completeness_bars(df, group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_single_group():
+    """Single-group MultiIndex should produce one bar without crashing."""
+    import matplotlib.pyplot as plt
+
+    rng = np.random.default_rng(7)
+    data = rng.random((20, 5))
+    columns = pd.MultiIndex.from_tuples(
+        [("OnlyGroup", f"s{i}") for i in range(5)],
+        names=["Condition", "Sample"],
+    )
+    df = pd.DataFrame(data, columns=columns)
+    fig = completeness_bars(df, group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_bars_save_to_disk(tmp_path: Path):
+    import matplotlib.pyplot as plt
+
+    out = tmp_path / "completeness.png"
+    completeness_bars(make_multiindex_df(), group_level="Condition",
+                      save=str(out))
+    assert out.exists()
+    assert out.stat().st_size > 0
+    plt.close("all")

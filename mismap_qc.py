@@ -92,6 +92,7 @@ def missing_matrix(
     show_dendrogram: bool = True,
     color_present: str | tuple = "#2d2d2d",
     color_missing: str | tuple = "#f0f0f0",
+    invert: bool = False,
     figsize: tuple[float, float] | None = None,
     fontsize: int = 10,
     fontsize_legend: int | None = None,
@@ -140,6 +141,9 @@ def missing_matrix(
         disabled when kmeans is used.
     color_present, color_missing : colour spec
         Colours for detected vs missing cells.
+    invert : bool
+        Swap present and missing colours. When ``True``, missing cells are dark
+        and present cells are light — the inverse of the default.
     figsize : tuple | None
         Figure size; auto-calculated if None.
     fontsize : int
@@ -176,6 +180,9 @@ def missing_matrix(
     -------
     matplotlib.figure.Figure
     """
+    if invert:
+        color_present, color_missing = color_missing, color_present
+
     # -- handle split_by by delegating to sub-calls -------------------------
     if split_by is not None:
         return _split_matrix(
@@ -624,6 +631,7 @@ def missing_matrix_html(
     cluster_method: str = "average",
     color_present: str = "#2d2d2d",
     color_missing: str = "#f0f0f0",
+    invert: bool = False,
     completeness: str = "below",
     completeness_threshold: float | None = None,
     width: int | None = None,
@@ -635,6 +643,9 @@ def missing_matrix_html(
 
     Returns the HTML string. If save is set, also writes to file.
     """
+    if invert:
+        color_present, color_missing = color_missing, color_present
+
     try:
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
@@ -1101,3 +1112,146 @@ def missing_abundance_density(
 
 # Keep old name as alias
 rna_missing_matrix = missing_matrix
+
+
+# ---------------------------------------------------------------------------
+# Per-group completeness bar chart
+# ---------------------------------------------------------------------------
+def completeness_bars(
+    df: pd.DataFrame,
+    group_level: int | str,
+    *,
+    threshold: float | None = None,
+    color: str | dict | None = None,
+    orientation: str = "horizontal",
+    title: str = "Per-Group Completeness",
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+) -> plt.Figure:
+    """
+    Horizontal (or vertical) bar chart of per-group detection completeness.
+
+    For each group, shows the mean fraction of features detected across all
+    samples in that group. Replaces the console-only ``group_summary`` output
+    of ``missing_matrix`` with a publishable figure.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Features (rows) x Samples (columns). NaN = missing / not detected.
+        Columns may be a MultiIndex; use ``group_level`` to select the grouping.
+    group_level : int or str
+        Column level (index or name) to group samples by.
+        If ``df`` has flat columns, pass ``0`` or any label — the whole dataset
+        is treated as one group (useful for a single-bar sanity check).
+    threshold : float or None
+        Draw a dashed red line at this completeness value (0–1). E.g. ``0.7``
+        marks the 70% completeness threshold.
+    color : str, dict, or None
+        Single hex colour for all bars, or ``{group_label: hex}`` dict for
+        per-group colours. Uses the built-in palette if ``None``.
+    orientation : "horizontal" or "vertical"
+        Bar orientation. Horizontal (default) is easier to read with long
+        group names.
+    title : str
+        Figure title.
+    fontsize : int
+        Base font size (default 10).
+    save : str or None
+        Save figure to this path if set.
+    dpi : int
+        Save resolution (default 150).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    has_mi = isinstance(df.columns, pd.MultiIndex)
+
+    # Resolve groups
+    if has_mi:
+        if isinstance(group_level, str):
+            grp_lv = list(df.columns.names).index(group_level)
+        else:
+            grp_lv = group_level
+        labels = np.array(df.columns.get_level_values(grp_lv))
+    else:
+        labels = np.array(["All samples"] * len(df.columns))
+
+    groups = list(dict.fromkeys(labels))
+
+    # Compute completeness per group
+    completeness = {}
+    for grp in groups:
+        mask = labels == grp
+        completeness[grp] = float(df.loc[:, mask].notna().mean().mean())
+
+    # Sort descending
+    groups_sorted = sorted(groups, key=lambda g: completeness[g], reverse=True)
+    values = [completeness[g] for g in groups_sorted]
+
+    # Resolve colours
+    if isinstance(color, dict):
+        colours = [color.get(g, "#4C72B0") for g in groups_sorted]
+    elif isinstance(color, str):
+        colours = [color] * len(groups_sorted)
+    else:
+        _, cmap = _assign_colors(np.array(groups_sorted), 0)
+        colours = [cmap[g] for g in groups_sorted]
+
+    # Figure
+    n_groups = len(groups_sorted)
+    if orientation == "horizontal":
+        figsize = (7, max(3, n_groups * 0.5 + 1))
+    else:
+        figsize = (max(4, n_groups * 0.7 + 1), 5)
+
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+
+    if orientation == "horizontal":
+        bars = ax.barh(range(n_groups), values, color=colours, edgecolor="white",
+                       linewidth=0.5)
+        ax.set_yticks(range(n_groups))
+        ax.set_yticklabels(groups_sorted, fontsize=fontsize)
+        ax.set_xlabel("Completeness", fontsize=fontsize)
+        ax.set_xlim(0, 1.05)
+        ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1))
+        if threshold is not None:
+            ax.axvline(threshold, color="#CC4444", linestyle="--",
+                       linewidth=1.2, alpha=0.9,
+                       label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+        # Value labels
+        for bar, val in zip(bars, values):
+            ax.text(val + 0.01, bar.get_y() + bar.get_height() / 2,
+                    f"{val:.1%}", va="center", ha="left", fontsize=fontsize - 1)
+    else:
+        bars = ax.bar(range(n_groups), values, color=colours, edgecolor="white",
+                      linewidth=0.5)
+        ax.set_xticks(range(n_groups))
+        ax.set_xticklabels(groups_sorted, fontsize=fontsize, rotation=45, ha="right")
+        ax.set_ylabel("Completeness", fontsize=fontsize)
+        ax.set_ylim(0, 1.1)
+        ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1))
+        if threshold is not None:
+            ax.axhline(threshold, color="#CC4444", linestyle="--",
+                       linewidth=1.2, alpha=0.9,
+                       label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+        for bar, val in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, val + 0.01,
+                    f"{val:.1%}", va="bottom", ha="center", fontsize=fontsize - 1)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    return fig
