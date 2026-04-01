@@ -1,12 +1,12 @@
 # mismap-qc
 
-Missing-data matrix for RNA-Seq and proteomics QC. Shows which features (genes, proteins) are detected vs missing across samples, with hierarchical clustering and multi-level colour annotation strips for experimental metadata.
+Missing-data matrix for **proteomics** and **RNA-Seq** QC. Shows which features are detected vs missing across samples, with hierarchical clustering and multi-level colour annotation strips.
 
 ![demo](output/demo_full.png)
 
 ## Examples
 
-- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** — real-world proteomics tutorial using public CPTAC LUAD data (~100 tumour/normal samples). Shows how missingness clusters by tumour/normal status and identifies potential QC outliers.
+- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** — real-world tutorial using public CPTAC LUAD data (~100 tumour/normal samples). Shows how missingness clusters by tumour/normal status.
 
 ## Quick start
 
@@ -22,14 +22,28 @@ Or import directly:
 import pandas as pd
 from mismap_qc import missing_matrix
 
-df = pd.read_csv("data/toy_rnaseq.csv", index_col=0, header=[0, 1, 2])
-fig = missing_matrix(df, title="Gene Detection Matrix")
+# Proteomics
+df = pd.read_csv("proteomics.csv", index_col=0)
+fig = missing_matrix(df, title="Protein Detection", feature_type="PROT")
+
+# RNA-Seq
+fig = missing_matrix(df, title="Gene Detection", feature_type="GENE")
 ```
+
+## Feature types
+
+The `feature_type` parameter controls labels in axes and tooltips:
+
+| Value | Labels |
+|-------|--------|
+| `"PROT"` | Protein / Proteins (default) |
+| `"GENE"` | Gene / Genes |
+| `"PEPTIDE"` | Peptide / Peptides |
 
 ## Input format
 
 A pandas DataFrame with:
-- **Rows** = genes (or any features)
+- **Rows** = features (proteins, genes, peptides)
 - **Columns** = samples, optionally as a `MultiIndex` for annotation strips
 - **NaN** = missing / not detected
 
@@ -54,7 +68,7 @@ fig = missing_matrix(
 | Dendrogram | Hierarchical clustering of samples by nullity pattern |
 | Annotation strips | One colour bar per MultiIndex column level |
 | Nullity matrix | Dark = detected, light = missing |
-| Completeness sparkline | Per-sample or per-gene detection rate |
+| Completeness sparkline | Per-sample or per-feature detection rate |
 
 ### Parameters
 
@@ -62,9 +76,10 @@ fig = missing_matrix(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `df` | `DataFrame` | required | Genes (rows) x samples (columns). NaN = missing. |
+| `df` | `DataFrame` | required | Features (rows) x samples (columns). NaN = missing. |
 | `title` | `str` | `""` | Bold figure title |
 | `subtitle` | `str` | `""` | Italic line below title (e.g. dataset metadata) |
+| `feature_type` | `str` | `"PROT"` | Feature type: `"PROT"`, `"GENE"`, or `"PEPTIDE"` |
 | `label_level` | `int` | `-1` | Which column level to use for x-axis tick labels |
 
 #### Clustering & sorting
@@ -74,7 +89,7 @@ fig = missing_matrix(
 | `cluster_samples` | `bool` | `True` | Cluster samples by binary nullity pattern |
 | `cluster_method` | `str` | `"average"` | scipy linkage method |
 | `show_dendrogram` | `bool` | `True` | Show dendrogram above the matrix |
-| `sort_genes` | `str \| None` | `"descending"` | Sort genes by completeness (`"ascending"`, `"descending"`, or `None`) |
+| `sort_features` | `str \| None` | `"descending"` | Sort features by completeness (`"ascending"`, `"descending"`, or `None`) |
 
 #### Annotations
 
@@ -101,7 +116,7 @@ Unspecified factor levels fall back to built-in palettes.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `completeness` | `str` | `"below"` | `"below"` = per-sample (horizontal), `"side"` = per-gene (vertical) |
+| `completeness` | `str` | `"below"` | `"below"` = per-sample (horizontal), `"side"` = per-feature (vertical) |
 | `completeness_threshold` | `float \| None` | `None` | Draws a dashed red line at this value (0--1) |
 
 #### Legends & layout
@@ -168,7 +183,7 @@ Each panel is independently clustered. The split level is automatically removed 
 
 ## `missing_matrix_html()` -- interactive HTML
 
-Plotly-based interactive version with hover tooltips showing gene name, sample ID, all annotation levels, and detection status.
+Plotly-based interactive version with hover tooltips showing feature name, sample ID, all annotation levels, and detection status.
 
 ```python
 from mismap_qc import missing_matrix_html

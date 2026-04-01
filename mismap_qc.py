@@ -1,14 +1,19 @@
 """
-mismap-qc: missing-data matrix for RNA-Seq and proteomics QC.
+mismap-qc: missing-data matrix for proteomics and RNA-Seq QC.
 
 Usage:
     from mismap_qc import missing_matrix
 
-    # df: genes (rows) x samples (MultiIndex columns), NaN = missing
-    fig = missing_matrix(df, title="Gene Detection Matrix", save="output.png")
+    # df: features (rows) x samples (MultiIndex columns), NaN = missing
+    fig = missing_matrix(df, title="Detection Matrix", feature_type="PROT")
+
+    # For genes:
+    fig = missing_matrix(df, title="Detection Matrix", feature_type="GENE")
 
     # Interactive HTML version
-    missing_matrix_html(df, title="Gene Detection Matrix", save="output.html")
+    missing_matrix_html(df, title="Detection Matrix", save="output.html")
+
+Feature types: "PROT" (proteins), "GENE" (genes), "PEPTIDE" (peptides)
 """
 from __future__ import annotations
 
@@ -31,6 +36,18 @@ _PALETTES = [
     ["#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
      "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5"],
 ]
+
+# Feature type labels for axis labels and annotations
+FEATURE_TYPES = {
+    "PROT": {"singular": "protein", "plural": "proteins", "cap_singular": "Protein", "cap_plural": "Proteins"},
+    "GENE": {"singular": "gene", "plural": "genes", "cap_singular": "Gene", "cap_plural": "Genes"},
+    "PEPTIDE": {"singular": "peptide", "plural": "peptides", "cap_singular": "Peptide", "cap_plural": "Peptides"},
+}
+
+
+def _get_feature_labels(feature_type: str) -> dict:
+    """Get label strings for a feature type. Returns PROT labels if unknown."""
+    return FEATURE_TYPES.get(feature_type.upper(), FEATURE_TYPES["PROT"])
 
 
 def _assign_colors(
@@ -83,10 +100,11 @@ def missing_matrix(
     *,
     title: str = "",
     subtitle: str = "",
+    feature_type: str = "PROT",
     annotation_levels: list[int] | None = None,
     annotation_colors: dict[int | str, dict[str, str]] | None = None,
     label_level: int = -1,
-    sort_genes: str | None = "descending",
+    sort_features: str | None = "descending",
     cluster_samples: bool = True,
     cluster_method: str = "average",
     show_dendrogram: bool = True,
@@ -113,13 +131,15 @@ def missing_matrix(
     Parameters
     ----------
     df : DataFrame
-        Genes (rows) x Samples (columns). Use MultiIndex columns for
+        Features (rows) x Samples (columns). Use MultiIndex columns for
         annotation strips; level names become strip labels automatically.
         NaN = missing / not detected.
     title : str
         Figure title (empty string = no title).
     subtitle : str
         Secondary line below title for dataset metadata.
+    feature_type : str
+        Type of features: "PROT", "GENE", or "PEPTIDE". Used for labels.
     annotation_levels : list[int] | None
         Column-index levels to show as colour bars. Default: all levels
         except the innermost (used for tick labels).
@@ -129,16 +149,14 @@ def missing_matrix(
         hex colours.
     label_level : int
         Column level for x-axis tick labels (-1 = innermost).
-    sort_genes : "ascending" | "descending" | None
-        Sort genes by completeness. Default "descending".
+    sort_features : "ascending" | "descending" | None
+        Sort features by completeness. Default "descending".
     cluster_samples : bool
-        Cluster samples by nullity pattern (default True). Ignored when
-        kmeans is set.
+        Cluster samples by nullity pattern (default True).
     cluster_method : str
         scipy linkage method (default "average").
     show_dendrogram : bool
-        Draw dendrogram above annotations (default True). Automatically
-        disabled when kmeans is used.
+        Draw dendrogram above annotations (default True).
     color_present, color_missing : colour spec
         Colours for detected vs missing cells.
     invert : bool
@@ -151,7 +169,7 @@ def missing_matrix(
     fontsize_legend : int | None
         Font size for legend entries.
     fontsize_rows : int | None
-        Font size for row (gene) labels.
+        Font size for row (feature) labels.
     fontsize_cols : int | None
         Font size for column (sample) labels.
     fontsize_annotations : int | None
@@ -187,9 +205,10 @@ def missing_matrix(
     if split_by is not None:
         return _split_matrix(
             df, split_by=split_by, title=title, subtitle=subtitle,
+            feature_type=feature_type,
             annotation_levels=annotation_levels,
             annotation_colors=annotation_colors,
-            label_level=label_level, sort_genes=sort_genes,
+            label_level=label_level, sort_features=sort_features,
             cluster_samples=cluster_samples, cluster_method=cluster_method,
             show_dendrogram=show_dendrogram,
             color_present=color_present, color_missing=color_missing,
@@ -227,9 +246,9 @@ def missing_matrix(
     z = df.notnull().values.astype(np.int8)
     n_genes, n_samples = z.shape
 
-    if sort_genes == "ascending":
+    if sort_features == "ascending":
         row_order = np.argsort(z.sum(axis=1))
-    elif sort_genes == "descending":
+    elif sort_features == "descending":
         row_order = np.argsort(z.sum(axis=1))[::-1]
     else:
         row_order = np.arange(n_genes)
@@ -623,10 +642,11 @@ def missing_matrix_html(
     *,
     title: str = "Missing Data Matrix",
     subtitle: str = "",
+    feature_type: str = "PROT",
     annotation_levels: list[int] | None = None,
     annotation_colors: dict[int | str, dict[str, str]] | None = None,
     label_level: int = -1,
-    sort_genes: str | None = "descending",
+    sort_features: str | None = "descending",
     cluster_samples: bool = True,
     cluster_method: str = "average",
     color_present: str = "#2d2d2d",
@@ -641,6 +661,11 @@ def missing_matrix_html(
     """
     Interactive HTML missing-data matrix using plotly.
 
+    Parameters
+    ----------
+    feature_type : str
+        Type of features: "PROT", "GENE", or "PEPTIDE". Used for hover labels.
+
     Returns the HTML string. If save is set, also writes to file.
     """
     if invert:
@@ -652,6 +677,7 @@ def missing_matrix_html(
     except ImportError:
         raise ImportError("pip install plotly  -- required for HTML export")
 
+    fl = _get_feature_labels(feature_type)
     has_mi = isinstance(df.columns, pd.MultiIndex)
     n_levels = df.columns.nlevels if has_mi else 1
 
@@ -670,9 +696,9 @@ def missing_matrix_html(
     z = df.notnull().values.astype(np.int8)
     n_genes, n_samples = z.shape
 
-    if sort_genes == "ascending":
+    if sort_features == "ascending":
         row_order = np.argsort(z.sum(axis=1))
-    elif sort_genes == "descending":
+    elif sort_features == "descending":
         row_order = np.argsort(z.sum(axis=1))[::-1]
     else:
         row_order = np.arange(n_genes)
@@ -698,14 +724,14 @@ def missing_matrix_html(
         sample_labels = [str(c) for c in df.columns]
         hover_parts = []
 
-    gene_labels = [str(g) for g in df.index]
+    feature_labels = [str(g) for g in df.index]
 
     # Build hover text matrix
     hover_text = []
     for i in range(n_genes):
         row = []
         for j in range(n_samples):
-            parts = [f"<b>Gene:</b> {gene_labels[i]}"]
+            parts = [f"<b>{fl['cap_singular']}:</b> {feature_labels[i]}"]
             parts.append(f"<b>Sample:</b> {sample_labels[j]}")
             for lname, vals in hover_parts:
                 parts.append(f"<b>{lname}:</b> {vals[j]}")
@@ -776,7 +802,7 @@ def missing_matrix_html(
     fig.add_trace(go.Heatmap(
         z=z,
         x=sample_labels,
-        y=gene_labels,
+        y=feature_labels,
         colorscale=colorscale,
         showscale=False,
         hovertext=hover_text,
@@ -1248,6 +1274,302 @@ def completeness_bars(
 
     if title:
         ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# detection_waterfall — feature detection threshold curve
+# ---------------------------------------------------------------------------
+
+
+def detection_waterfall(
+    df: pd.DataFrame,
+    thresholds: list[float] | None = None,
+    group_level: int | str | None = None,
+    feature_type: str = "PROT",
+    color: str = "#2d2d2d",
+    title: str | None = None,
+    subtitle: str = "",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+) -> plt.Figure:
+    """
+    Waterfall plot showing features ranked by detection rate.
+
+    Features are ranked by their detection rate across samples and plotted as
+    a cumulative curve. Threshold lines show how many features survive at
+    different filtering cutoffs.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Features (rows) x samples (columns). NaN = missing/not detected.
+    thresholds : list of float or None
+        Detection rate thresholds to draw as horizontal lines (0-1 scale).
+        Default: [0.5, 0.7, 0.9].
+    group_level : int, str, or None
+        If set, compute and plot separate curves per group (MultiIndex level).
+    feature_type : str
+        Type of features: "PROT", "GENE", or "PEPTIDE". Used for axis labels.
+    color : str
+        Colour for the curve when not grouping. Default "#2d2d2d".
+    title : str or None
+        Figure title. Auto-generated from feature_type if None.
+    subtitle : str
+        Italic line below title.
+    figsize : tuple or None
+        Figure size. Auto-calculated if None.
+    fontsize : int
+        Base font size (default 10).
+    save : str or None
+        Save figure to this path if set.
+    dpi : int
+        Save resolution (default 150).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+
+    Examples
+    --------
+    >>> fig = detection_waterfall(df, thresholds=[0.5, 0.7])
+    >>> fig = detection_waterfall(df, group_level="Condition", feature_type="GENE")
+    """
+    if thresholds is None:
+        thresholds = [0.5, 0.7, 0.9]
+
+    fl = _get_feature_labels(feature_type)
+    if title is None:
+        title = f"{fl['cap_singular']} Detection Waterfall"
+
+    has_mi = isinstance(df.columns, pd.MultiIndex)
+
+    if figsize is None:
+        figsize = (8, 5)
+
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+
+    # If grouping, plot one curve per group
+    if group_level is not None and has_mi:
+        if isinstance(group_level, str):
+            grp_lv = list(df.columns.names).index(group_level)
+        else:
+            grp_lv = group_level
+        labels = np.array(df.columns.get_level_values(grp_lv))
+        groups = list(dict.fromkeys(labels))
+
+        _, cmap = _assign_colors(np.array(groups), 0)
+
+        for grp in groups:
+            mask = labels == grp
+            df_grp = df.loc[:, mask]
+            detection_rates = df_grp.notna().mean(axis=1).sort_values(ascending=False)
+            x = np.arange(len(detection_rates))
+            y = detection_rates.values
+
+            ax.fill_between(x, y, alpha=0.3, color=cmap[grp])
+            ax.plot(x, y, linewidth=1.5, color=cmap[grp], label=grp)
+    else:
+        # Single curve for all samples
+        detection_rates = df.notna().mean(axis=1).sort_values(ascending=False)
+        x = np.arange(len(detection_rates))
+        y = detection_rates.values
+
+        ax.fill_between(x, y, alpha=0.3, color=color)
+        ax.plot(x, y, linewidth=1.5, color=color)
+
+    # Draw threshold lines with annotations
+    n_features = len(df)
+    for thresh in sorted(thresholds, reverse=True):
+        ax.axhline(thresh, color="#CC4444", linestyle="--", linewidth=1, alpha=0.8)
+
+        # Count features at or above this threshold
+        n_above = int((df.notna().mean(axis=1) >= thresh).sum())
+        pct = n_above / n_features * 100
+
+        # Position annotation at right edge
+        ax.text(
+            n_features * 0.98, thresh + 0.02,
+            f"{n_above:,} {fl['plural']} ({pct:.0f}%) at ≥{thresh:.0%}",
+            ha="right", va="bottom", fontsize=fontsize - 1, color="#CC4444"
+        )
+
+    # Axis formatting
+    ax.set_xlim(0, n_features)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlabel(f"{fl['cap_plural']} (ranked by detection rate)", fontsize=fontsize)
+    ax.set_ylabel("Detection rate", fontsize=fontsize)
+    ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1))
+    ax.tick_params(labelsize=fontsize - 1)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Legend if grouping
+    if group_level is not None and has_mi:
+        ax.legend(fontsize=fontsize - 1, loc="lower left")
+
+    # Title and subtitle
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+    if subtitle:
+        ax.text(
+            0.5, 1.02, subtitle,
+            transform=ax.transAxes, ha="center", va="bottom",
+            fontsize=fontsize - 1, fontstyle="italic", color="#666666"
+        )
+
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# missing_runorder — missingness over run order / time
+# ---------------------------------------------------------------------------
+
+
+def missing_runorder(
+    df: pd.DataFrame,
+    run_order: list | pd.Series | np.ndarray | None = None,
+    group_level: int | str | None = None,
+    smooth: bool = True,
+    smooth_window: int = 5,
+    title: str = "Missingness Over Run Order",
+    subtitle: str = "",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+) -> plt.Figure:
+    """
+    Plot per-sample missingness rate against run order.
+
+    Shows how missingness varies across sample acquisition order. Useful for
+    detecting instrument drift or batch effects in proteomics experiments.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Features (rows) x samples (columns). NaN = missing/not detected.
+    run_order : array-like or None
+        Explicit run order values (one per sample). Uses column index if None.
+    group_level : int, str, or None
+        If set, colour points by this MultiIndex level (e.g. batch, condition).
+    smooth : bool
+        Add a rolling mean smoother line. Default True.
+    smooth_window : int
+        Window size for rolling mean. Default 5.
+    title : str
+        Figure title.
+    subtitle : str
+        Italic line below title.
+    figsize : tuple or None
+        Figure size. Auto-calculated if None.
+    fontsize : int
+        Base font size (default 10).
+    save : str or None
+        Save figure to this path if set.
+    dpi : int
+        Save resolution (default 150).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+
+    Examples
+    --------
+    >>> fig = missing_runorder(df)
+    >>> fig = missing_runorder(df, group_level="Batch", smooth=True)
+    """
+    has_mi = isinstance(df.columns, pd.MultiIndex)
+    n_samples = len(df.columns)
+
+    # Per-sample missingness rate
+    missing_rate = df.isna().mean(axis=0).values
+
+    # Run order
+    if run_order is None:
+        x = np.arange(n_samples)
+        x_label = "Sample index"
+    else:
+        x = np.array(run_order)
+        x_label = "Run order"
+
+    if figsize is None:
+        figsize = (10, 5)
+
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+
+    # Plot points, optionally coloured by group
+    if group_level is not None and has_mi:
+        if isinstance(group_level, str):
+            grp_lv = list(df.columns.names).index(group_level)
+        else:
+            grp_lv = group_level
+        labels = np.array(df.columns.get_level_values(grp_lv))
+        groups = list(dict.fromkeys(labels))
+
+        _, cmap = _assign_colors(np.array(groups), 0)
+
+        for grp in groups:
+            mask = labels == grp
+            ax.scatter(x[mask], missing_rate[mask], c=cmap[grp], label=grp,
+                       s=40, alpha=0.7, edgecolors="white", linewidths=0.5)
+    else:
+        ax.scatter(x, missing_rate, c="#2d2d2d", s=40, alpha=0.7,
+                   edgecolors="white", linewidths=0.5)
+
+    # Smoother line (rolling mean)
+    if smooth and n_samples >= smooth_window:
+        sorted_idx = np.argsort(x)
+        x_sorted = x[sorted_idx]
+        y_sorted = missing_rate[sorted_idx]
+        y_smooth = pd.Series(y_sorted).rolling(
+            window=smooth_window, center=True, min_periods=1
+        ).mean().values
+        ax.plot(x_sorted, y_smooth, color="#CC4444", linewidth=2, alpha=0.8,
+                label=f"Rolling mean (n={smooth_window})")
+
+    # Dataset mean line
+    mean_missing = missing_rate.mean()
+    ax.axhline(mean_missing, color="#666666", linestyle="--", linewidth=1,
+               alpha=0.8, label=f"Mean: {mean_missing:.1%}")
+
+    # Axis formatting
+    ax.set_xlim(x.min() - 0.5, x.max() + 0.5)
+    ax.set_ylim(0, min(1.05, missing_rate.max() * 1.2 + 0.05))
+    ax.set_xlabel(x_label, fontsize=fontsize)
+    ax.set_ylabel("Missing rate per sample", fontsize=fontsize)
+    ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1))
+    ax.tick_params(labelsize=fontsize - 1)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Legend
+    ax.legend(fontsize=fontsize - 1, loc="upper right")
+
+    # Title and subtitle
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+    if subtitle:
+        ax.text(
+            0.5, 1.02, subtitle,
+            transform=ax.transAxes, ha="center", va="bottom",
+            fontsize=fontsize - 1, fontstyle="italic", color="#666666"
+        )
 
     fig.tight_layout()
 

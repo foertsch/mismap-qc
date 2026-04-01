@@ -1,7 +1,7 @@
 # Plan: New Plot Functions for mismap-qc
 
 Date: 2026-03-31
-Updated: 2026-04-01
+Updated: 2026-04-01 (detection_waterfall, missing_runorder done)
 Status: In progress
 
 ---
@@ -541,8 +541,8 @@ After implementation:
 
 ### Wave 1
 - [x] `completeness_bars()` — done
-- [ ] `detection_waterfall()` — not started
-- [ ] `missing_runorder()` — not started
+- [x] `detection_waterfall()` — done
+- [x] `missing_runorder()` — done
 - [ ] `missing_mechanism()` — not started
 - [ ] `comissing_heatmap()` — not started
 
