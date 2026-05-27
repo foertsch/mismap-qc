@@ -164,6 +164,7 @@ def test_invert_swaps_colors():
 
     fig_normal = missing_matrix(make_flat_df())
     fig_inverted = missing_matrix(make_flat_df(), invert=True)
+    assert isinstance(fig_normal, plt.Figure)
     assert isinstance(fig_inverted, plt.Figure)
     plt.close("all")
 
