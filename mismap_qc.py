@@ -62,9 +62,9 @@ def _assign_colors(
         for k, v in overrides.items():
             if k in cmap:
                 cmap[k] = v
-    rgb_lut = np.array([mpl.colors.to_rgb(cmap[l]) for l in unique])
+    rgb_lut = np.array([mpl.colors.to_rgb(cmap[lab]) for lab in unique])
     idx_map = {u: i for i, u in enumerate(unique)}
-    indices = np.array([idx_map[l] for l in labels])
+    indices = np.array([idx_map[lab] for lab in labels])
     return rgb_lut[indices], cmap
 
 
@@ -768,8 +768,8 @@ def missing_matrix_html(
 
         # Use individual colored rectangles for crisp annotation strips
         unique_labels = list(dict.fromkeys(labels))
-        label_to_int = {l: i for i, l in enumerate(unique_labels)}
-        z_ann = [[label_to_int[l] for l in labels]]
+        label_to_int = {lab: i for i, lab in enumerate(unique_labels)}
+        z_ann = [[label_to_int[lab] for lab in labels]]
 
         # Build discrete colorscale
         n_unique = len(unique_labels)
@@ -786,7 +786,7 @@ def missing_matrix_html(
             colorscale=discrete_cs,
             showscale=False,
             xgap=1,
-            hovertext=[[f"<b>{level_names[idx]}:</b> {l}" for l in labels]],
+            hovertext=[[f"<b>{level_names[idx]}:</b> {lab}" for lab in labels]],
             hoverinfo="text",
         ), row=idx + 1, col=1)
 
@@ -998,7 +998,6 @@ def missing_abundance_density(
     valid_mask = ~np.isnan(mean_abundance)
     na_counts = na_counts[valid_mask]
     mean_abundance = mean_abundance[valid_mask]
-    gene_idx = np.where(valid_mask)[0]
 
     # Bin high NA counts
     na_labels = na_counts.copy()
