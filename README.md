@@ -1,33 +1,102 @@
 # mismap-qc
 
-Missing-data matrix for **proteomics** and **RNA-Seq** QC. Shows which features are detected vs missing across samples, with hierarchical clustering and multi-level colour annotation strips.
+Missing-data validation for proteomics and RNA-Seq experiments. Detects outlier
+samples, classifies dropout mechanism (MNAR vs MAR), tests for batch effects,
+and gates pipelines on configurable QC rules. Every check has a matching plot
+for when you want to see the problem rather than just check it.
 
-![demo](output/demo_full.png)
+## Install
 
-## Examples
+```bash
+pip install mismap-qc
+```
 
-- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** — real-world tutorial using public CPTAC LUAD data (~100 tumour/normal samples). Shows how missingness clusters by tumour/normal status.
+Optional extras: `[interactive]` for HTML matrices (plotly), `[anndata]` for
+AnnData input.
 
 ## Quick start
 
-No virtual environment needed -- uses [PEP 723](https://peps.python.org/pep-0723/) inline script dependencies with [uv](https://docs.astral.sh/uv/).
+```python
+import pandas as pd
+from mismap_qc import qc, assert_qc
+
+df = pd.read_csv("proteomics.tsv", sep="\t", index_col=0)
+
+# 1. Inspect: full QC report in one call
+report = qc(df, group_level="condition")
+print(report)
+# MismapReport(n=8412x96, 3 outliers, 412 MNAR features, passed=True)
+
+# 2. Drill in on anything flagged (the report holds pandas DataFrames)
+report.sample_outliers.query("flagged")
+report.feature_mechanism.query("mechanism == 'MNAR'")
+
+# 3. Gate a pipeline (raises MismapQCFailure on rule violation)
+assert_qc(df, thresholds={
+    "min_sample_completeness": 0.60,
+    "max_mnar_fraction": 0.30,
+    "max_sample_outliers": 3,
+})
+```
+
+For a human-readable multi-section summary instead of the one-line repr:
+
+```python
+print(report.summary())
+```
+
+Starting from an AnnData object:
+
+```python
+from mismap_qc import from_anndata, qc
+df = from_anndata(adata, obs_levels=["batch", "condition"])
+report = qc(df, group_level="condition")
+```
+
+To pair any plot with its underlying numbers, pass `return_data=True`:
+
+```python
+from mismap_qc import detection_waterfall
+fig, table = detection_waterfall(df, return_data=True)
+# table: feature, detection_rate, rank
+```
+
+## What this validates
+
+| Check | What it catches |
+|---|---|
+| Sample completeness | Samples with too few detected features |
+| Outlier detection | Samples with anomalous missingness vs group peers |
+| Missingness mechanism | Dropouts driven by low abundance (MNAR) vs random (MAR) |
+| Batch effects | Features whose detection differs between conditions |
+| Run order drift | Instrument degradation over a long acquisition |
+
+![demo](output/demo_full.png)
+
+## Why use this
+
+mismap-qc fills a specific gap in the Python omics ecosystem:
+
+- `missingno` does general missing-data visualization but has no omics awareness
+  (groups, MultiIndex sample annotations, MNAR mechanism).
+- `protti` (R) classifies missingness mechanism but has no Python equivalent.
+- `great-expectations` validates tabular data but does not understand
+  missingness mechanism or omics-specific patterns.
+
+mismap-qc handles all three with a single API and reads AnnData natively.
+
+## Examples
+
+- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** --
+  real-world tutorial using public CPTAC LUAD data (~100 tumour/normal samples).
+  Shows how missingness clusters by tumour/normal status.
+
+## Running the demo
+
+No virtual environment needed -- the demo uses [PEP 723](https://peps.python.org/pep-0723/) inline script dependencies with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv run demo.py
-```
-
-Or import directly:
-
-```python
-import pandas as pd
-from mismap_qc import missing_matrix
-
-# Proteomics
-df = pd.read_csv("proteomics.csv", index_col=0)
-fig = missing_matrix(df, title="Protein Detection", feature_type="PROT")
-
-# RNA-Seq
-fig = missing_matrix(df, title="Gene Detection", feature_type="GENE")
 ```
 
 ## Feature types
