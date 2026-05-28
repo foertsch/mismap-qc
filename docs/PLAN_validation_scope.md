@@ -526,7 +526,7 @@ Subcommands:
   [project.scripts]
   mismap-qc = "mismap_qc.cli:app"
   ```
-- This means the CLI code needs to move out of the single-file constraint a bit. Suggested split: keep `mismap_qc.py` as the library, add `mismap_qc/cli.py` only when implementing this. Re-check the single-file convention with the user before doing so.
+- The CLI lives in its own submodule: `mismap_qc/cli.py`. The package is now split (`mismap_qc/` directory) so this is the natural home, no convention to re-check.
 - Defer until A and B are done. Without `MismapReport` and structured returns, the CLI has nothing clean to wrap.
 
 ### Tests
@@ -661,7 +661,7 @@ def replicate_concordance(
 
 ## Testing
 
-Each scope item follows the same pattern already established in `tests/test_mismap_qc.py`:
+Each scope item follows the same pattern established in `tests/test_mismap_qc.py` (plots) and `tests/test_validation_api.py` (validation):
 
 1. Returns expected type (figure, dataclass, Series, etc.)
 2. Works with flat columns and MultiIndex.
@@ -699,9 +699,9 @@ assert_qc(df, thresholds={
 
 This single example carries more weight with reviewers than any individual plot screenshot.
 
-## Single-file convention
+## Module placement (post-split)
 
-Scopes A, B, E stay inside `mismap_qc.py`. Scope C.1 (`from_anndata`) also fits. Scope D (CLI) requires a second file (`cli.py`). The existing CLAUDE.md says "Don't split into submodules unless it exceeds ~3,000 lines." The CLI is the natural exception, since it lives behind a separate entry point. Flag this to the user before implementing D.
+The package was split from `mismap_qc.py` to a `mismap_qc/` package in 0.2.0 (the single-file convention's 3,000-line threshold was reached). New code goes into the existing modules: validation API in `mismap_qc/validation.py`, analytical helpers in `mismap_qc/stats.py`, plots in `mismap_qc/plots.py`, interop readers in `mismap_qc/io.py`. Scope D (CLI) gets its own `mismap_qc/cli.py` when implemented.
 
 ---
 
