@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mismap-qc"
-version = "0.1.0"
+version = "0.2.0"
 description = "Missing-data matrix for RNA-Seq and proteomics QC"
 readme = "README.md"
 license = { file = "LICENSE" }
