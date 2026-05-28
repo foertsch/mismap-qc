@@ -537,14 +537,30 @@ After implementation:
 
 ---
 
+## Metagenomics Note
+
+Metagenomics feature tables (OTU/ASV/species × samples) are structurally compatible
+with mismap-qc, but the niche is not worth pursuing actively. The downstream
+metagenomics ecosystem is R-dominant (phyloseq, vegan, microbiome) and already
+handles prevalence filtering. The Python metagenomics audience is small and mostly
+pipeline-focused rather than QC-focused.
+
+**One low-effort change worth doing:** add `"OTU"`, `"ASV"`, and `"TAXON"` to
+`FEATURE_TYPES` so axis labels are correct if a metagenomics user does find the
+package. No tutorial or README section needed.
+
+**Core positioning stays:** proteomics + bulk RNA-seq, Python-native.
+
+---
+
 ## Status
 
 ### Wave 1
 - [x] `completeness_bars()` — done
 - [x] `detection_waterfall()` — done
 - [x] `missing_runorder()` — done
-- [ ] `missing_mechanism()` — not started
-- [ ] `comissing_heatmap()` — not started
+- [x] `missing_mechanism()` — done (2026-05-28); wraps `_classify_mechanism` helper from the validation API
+- [x] `comissing_heatmap()` — done (2026-05-28); wraps `_comissing_matrix` helper
 
 ### Wave 2
 - [ ] `missing_upset()` — not started
