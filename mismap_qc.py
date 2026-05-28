@@ -128,6 +128,7 @@ def missing_matrix(
     split_by: int | str | None = None,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Pretty missing-data matrix with multi-level sample annotations.
@@ -207,7 +208,7 @@ def missing_matrix(
 
     # -- handle split_by by delegating to sub-calls -------------------------
     if split_by is not None:
-        return _split_matrix(
+        _split_fig = _split_matrix(
             df, split_by=split_by, title=title, subtitle=subtitle,
             feature_type=feature_type,
             annotation_levels=annotation_levels,
@@ -224,6 +225,9 @@ def missing_matrix(
             legend_loc=legend_loc, group_summary=group_summary,
             save=save, dpi=dpi,
         )
+        if return_data:
+            return _split_fig, _data_missing_matrix(df)
+        return _split_fig
 
     # -- resolve font sizes -------------------------------------------------
     fs_legend = fontsize_legend if fontsize_legend is not None else fontsize - 2
@@ -531,6 +535,8 @@ def missing_matrix(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_missing_matrix(df)
     return fig
 
 
@@ -1157,6 +1163,7 @@ def completeness_bars(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Horizontal (or vertical) bar chart of per-group detection completeness.
@@ -1283,6 +1290,8 @@ def completeness_bars(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_completeness_bars(df, group_level)
     return fig
 
 
@@ -1303,6 +1312,7 @@ def detection_waterfall(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Waterfall plot showing features ranked by detection rate.
@@ -1435,6 +1445,8 @@ def detection_waterfall(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_detection_waterfall(df)
     return fig
 
 
@@ -1455,6 +1467,7 @@ def missing_runorder(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Plot per-sample missingness rate against run order.
@@ -1579,6 +1592,8 @@ def missing_runorder(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_missing_runorder(df, run_order=run_order, group_level=group_level)
     return fig
 
 
@@ -2587,6 +2602,7 @@ def comissing_heatmap(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """Heatmap of pairwise co-missingness for the top_n most-missing features.
 
@@ -2689,4 +2705,116 @@ def comissing_heatmap(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_comissing_heatmap(df, top_n=top_n)
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Numeric output helpers (Scope B / checkpoint 3)
+#
+# Each helper returns the underlying DataFrame for a plot function so users
+# who pass return_data=True receive both the figure and the numbers in a
+# stable, documented schema. Tested by tests/test_return_data_schemas.py.
+# ---------------------------------------------------------------------------
+
+
+def _data_missing_matrix(df: pd.DataFrame) -> pd.DataFrame:
+    """Long-form schema for missing_matrix: columns [feature, sample, missing]."""
+    if isinstance(df.columns, pd.MultiIndex):
+        df_flat = df.copy()
+        df_flat.columns = pd.Index(
+            ["__".join(str(x) for x in c) for c in df_flat.columns]
+        )
+    else:
+        df_flat = df
+    long = df_flat.isna().stack(future_stack=True).reset_index()
+    long.columns = ["feature", "sample", "missing"]
+    long["feature"] = long["feature"].astype(str)
+    long["sample"] = long["sample"].astype(str)
+    return long
+
+
+def _data_completeness_bars(df: pd.DataFrame, group_level) -> pd.DataFrame:
+    """Schema: columns [group, completeness, n_samples]."""
+    if isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        groups = np.array([t[gl] for t in df.columns])
+    else:
+        # Treat the whole df as one synthetic group, matching plot behavior.
+        groups = np.array(["all_samples"] * df.shape[1])
+    rows = []
+    for g in pd.unique(groups):
+        mask = groups == g
+        sub = df.iloc[:, mask]
+        # Mean per-sample detection rate within the group
+        comp = float(sub.notna().mean(axis=0).mean()) if mask.any() else 0.0
+        rows.append((g, comp, int(mask.sum())))
+    return pd.DataFrame(rows, columns=["group", "completeness", "n_samples"])
+
+
+def _data_detection_waterfall(df: pd.DataFrame) -> pd.DataFrame:
+    """Schema: columns [feature, detection_rate, rank]."""
+    rates = df.notna().mean(axis=1).sort_values(ascending=False)
+    return pd.DataFrame(
+        {
+            "feature": [str(x) for x in rates.index],
+            "detection_rate": rates.values.astype(float),
+            "rank": np.arange(1, len(rates) + 1, dtype=int),
+        }
+    )
+
+
+def _data_missing_runorder(df, run_order=None, group_level=None) -> pd.DataFrame:
+    """Schema: columns [sample, run_order, missing_rate, group]."""
+    missing_rate = df.isna().mean(axis=0).values.astype(float)
+    sample_names = [str(c) for c in df.columns]
+    if run_order is None:
+        ro = np.arange(len(df.columns), dtype=float)
+    else:
+        ro = np.asarray(run_order, dtype=float)
+    groups = [None] * len(df.columns)
+    if group_level is not None and isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        groups = [t[gl] for t in df.columns]
+    return pd.DataFrame(
+        {
+            "sample": sample_names,
+            "run_order": ro,
+            "missing_rate": missing_rate,
+            "group": groups,
+        }
+    )
+
+
+def _data_comissing_heatmap(df: pd.DataFrame, top_n: int = 50) -> pd.DataFrame:
+    """Long-form schema: columns [feature_a, feature_b, comissingness]. Upper triangle only."""
+    co_df = _comissing_matrix(df, top_n=top_n)
+    cols = ["feature_a", "feature_b", "comissingness"]
+    if len(co_df) < 2:
+        return pd.DataFrame(columns=cols)
+    n = len(co_df)
+    iu = np.triu_indices(n, k=1)
+    names = list(co_df.index)
+    rows = [
+        (names[i], names[j], float(co_df.iloc[i, j])) for i, j in zip(iu[0], iu[1])
+    ]
+    return pd.DataFrame(rows, columns=cols)
+
+
+# Public schema registry. The test suite asserts every plot's return_data
+# output matches these column lists exactly. Renaming or removing a column
+# requires a deprecation cycle.
+_RETURN_DATA_SCHEMAS = {
+    "missing_matrix": ["feature", "sample", "missing"],
+    "completeness_bars": ["group", "completeness", "n_samples"],
+    "detection_waterfall": ["feature", "detection_rate", "rank"],
+    "missing_runorder": ["sample", "run_order", "missing_rate", "group"],
+    "comissing_heatmap": ["feature_a", "feature_b", "comissingness"],
+}
