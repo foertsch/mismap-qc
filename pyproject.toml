@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mismap-qc"
-version = "0.1.0"
+version = "0.2.0"
 description = "Missing-data matrix for RNA-Seq and proteomics QC"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Alexander Foertsch" }]
+authors = [{ name = "Arion Foertsch" }]
 keywords = ["bioinformatics", "rna-seq", "proteomics", "visualization", "missing-data", "qc"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,13 +31,14 @@ dependencies = [
 
 [project.optional-dependencies]
 interactive = ["plotly"]
-dev = ["pytest", "plotly"]
+anndata = ["anndata"]
+dev = ["pytest", "plotly", "anndata"]
 
 [project.urls]
-Repository = "https://github.com/afoertsch/mismap-qc"
+Repository = "https://github.com/foertsch/mismap-qc"
 
 [tool.hatch.build.targets.wheel]
-include = ["mismap_qc.py"]
+packages = ["mismap_qc"]
 
 [tool.ruff]
 target-version = "py310"

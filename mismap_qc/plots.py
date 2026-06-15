@@ -1,100 +1,25 @@
-"""
-mismap-qc: missing-data matrix for proteomics and RNA-Seq QC.
-
-Usage:
-    from mismap_qc import missing_matrix
-
-    # df: features (rows) x samples (MultiIndex columns), NaN = missing
-    fig = missing_matrix(df, title="Detection Matrix", feature_type="PROT")
-
-    # For genes:
-    fig = missing_matrix(df, title="Detection Matrix", feature_type="GENE")
-
-    # Interactive HTML version
-    missing_matrix_html(df, title="Detection Matrix", save="output.html")
-
-Feature types: "PROT" (proteins), "GENE" (genes), "PEPTIDE" (peptides)
-"""
+"""Plot functions. Each returns a Figure; with return_data=True, returns (Figure, DataFrame)."""
 from __future__ import annotations
 
-__version__ = "0.1.0"
-
+import matplotlib as mpl
+import matplotlib.gridspec as gridspec  # noqa: F401  (used by some legacy plots)
+import matplotlib.patches as mpatches  # noqa: F401
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as mpatches
 from scipy.cluster import hierarchy
 
-
-_PALETTES = [
-    ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3",
-     "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"],
-    ["#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E",
-     "#E6AB02", "#A6761D", "#666666", "#F781BF", "#A65628"],
-    ["#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
-     "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5"],
-]
-
-# Feature type labels for axis labels and annotations
-FEATURE_TYPES = {
-    "PROT": {"singular": "protein", "plural": "proteins", "cap_singular": "Protein", "cap_plural": "Proteins"},
-    "GENE": {"singular": "gene", "plural": "genes", "cap_singular": "Gene", "cap_plural": "Genes"},
-    "PEPTIDE": {"singular": "peptide", "plural": "peptides", "cap_singular": "Peptide", "cap_plural": "Peptides"},
-}
+from ._core import (
+    FEATURE_TYPES,  # noqa: F401
+    _PALETTES,  # noqa: F401
+    _assign_colors,
+    _clean_ax,
+    _get_feature_labels,
+    _resolve_color_overrides,
+)
+from .stats import _classify_mechanism, _comissing_matrix
 
 
-def _get_feature_labels(feature_type: str) -> dict:
-    """Get label strings for a feature type. Returns PROT labels if unknown."""
-    return FEATURE_TYPES.get(feature_type.upper(), FEATURE_TYPES["PROT"])
-
-
-def _assign_colors(
-    labels: np.ndarray,
-    palette_idx: int,
-    overrides: dict[str, str] | None = None,
-) -> tuple[np.ndarray, dict]:
-    palette = _PALETTES[palette_idx % len(_PALETTES)]
-    unique = list(dict.fromkeys(labels))
-    cmap = {u: palette[i % len(palette)] for i, u in enumerate(unique)}
-    if overrides:
-        for k, v in overrides.items():
-            if k in cmap:
-                cmap[k] = v
-    rgb_lut = np.array([mpl.colors.to_rgb(cmap[lab]) for lab in unique])
-    idx_map = {u: i for i, u in enumerate(unique)}
-    indices = np.array([idx_map[lab] for lab in labels])
-    return rgb_lut[indices], cmap
-
-
-def _clean_ax(ax):
-    ax.set_xticks([])
-    ax.set_yticks([])
-    for sp in ax.spines.values():
-        sp.set_visible(False)
-
-
-def _resolve_color_overrides(annotation_colors, df_columns):
-    """Build {int_level: {factor: hex}} lookup from user's annotation_colors."""
-    out: dict[int, dict[str, str]] = {}
-    if not annotation_colors or not isinstance(df_columns, pd.MultiIndex):
-        return out
-    for key, val in annotation_colors.items():
-        if isinstance(key, int):
-            out[key] = val
-        elif isinstance(key, str):
-            for i, n in enumerate(df_columns.names):
-                if n == key:
-                    out[i] = val
-                    break
-    return out
-
-
-
-# ---------------------------------------------------------------------------
-# Main static plot
-# ---------------------------------------------------------------------------
 def missing_matrix(
     df: pd.DataFrame,
     *,
@@ -124,6 +49,7 @@ def missing_matrix(
     split_by: int | str | None = None,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Pretty missing-data matrix with multi-level sample annotations.
@@ -203,7 +129,7 @@ def missing_matrix(
 
     # -- handle split_by by delegating to sub-calls -------------------------
     if split_by is not None:
-        return _split_matrix(
+        _split_fig = _split_matrix(
             df, split_by=split_by, title=title, subtitle=subtitle,
             feature_type=feature_type,
             annotation_levels=annotation_levels,
@@ -220,6 +146,9 @@ def missing_matrix(
             legend_loc=legend_loc, group_summary=group_summary,
             save=save, dpi=dpi,
         )
+        if return_data:
+            return _split_fig, _data_missing_matrix(df)
+        return _split_fig
 
     # -- resolve font sizes -------------------------------------------------
     fs_legend = fontsize_legend if fontsize_legend is not None else fontsize - 2
@@ -527,12 +456,10 @@ def missing_matrix(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_missing_matrix(df)
     return fig
 
-
-# ---------------------------------------------------------------------------
-# Split-by-factor: side-by-side panels
-# ---------------------------------------------------------------------------
 def _split_matrix(df, *, split_by, title, subtitle, save, dpi, figsize, **kwargs):
     """Render one panel per factor level, arranged side by side."""
     has_mi = isinstance(df.columns, pd.MultiIndex)
@@ -633,10 +560,6 @@ def _split_matrix(df, *, split_by, title, subtitle, save, dpi, figsize, **kwargs
 
     return comp_fig
 
-
-# ---------------------------------------------------------------------------
-# Interactive HTML export (plotly)
-# ---------------------------------------------------------------------------
 def missing_matrix_html(
     df: pd.DataFrame,
     *,
@@ -919,10 +842,6 @@ def missing_matrix_html(
             f.write(html)
     return html
 
-
-# ---------------------------------------------------------------------------
-# Abundance-by-missingness density plot
-# ---------------------------------------------------------------------------
 def missing_abundance_density(
     df: pd.DataFrame,
     *,
@@ -1134,14 +1053,6 @@ def missing_abundance_density(
 
     return fig
 
-
-# Keep old name as alias
-rna_missing_matrix = missing_matrix
-
-
-# ---------------------------------------------------------------------------
-# Per-group completeness bar chart
-# ---------------------------------------------------------------------------
 def completeness_bars(
     df: pd.DataFrame,
     group_level: int | str,
@@ -1153,6 +1064,7 @@ def completeness_bars(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Horizontal (or vertical) bar chart of per-group detection completeness.
@@ -1279,13 +1191,9 @@ def completeness_bars(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_completeness_bars(df, group_level)
     return fig
-
-
-# ---------------------------------------------------------------------------
-# detection_waterfall — feature detection threshold curve
-# ---------------------------------------------------------------------------
-
 
 def detection_waterfall(
     df: pd.DataFrame,
@@ -1299,6 +1207,7 @@ def detection_waterfall(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Waterfall plot showing features ranked by detection rate.
@@ -1431,13 +1340,9 @@ def detection_waterfall(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_detection_waterfall(df)
     return fig
-
-
-# ---------------------------------------------------------------------------
-# missing_runorder — missingness over run order / time
-# ---------------------------------------------------------------------------
-
 
 def missing_runorder(
     df: pd.DataFrame,
@@ -1451,6 +1356,7 @@ def missing_runorder(
     fontsize: int = 10,
     save: str | None = None,
     dpi: int = 150,
+    return_data: bool = False,
 ) -> plt.Figure:
     """
     Plot per-sample missingness rate against run order.
@@ -1575,4 +1481,375 @@ def missing_runorder(
     if save:
         fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
 
+    if return_data:
+        return fig, _data_missing_runorder(df, run_order=run_order, group_level=group_level)
     return fig
+
+def missing_mechanism(
+    df: pd.DataFrame,
+    *,
+    method: str = "mannwhitneyu",
+    alpha: float = 0.05,
+    min_present: int = 3,
+    feature_type: str = "PROT",
+    show_scatter: bool = True,
+    title: str | None = None,
+    subtitle: str = "",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+) -> tuple[plt.Figure, pd.DataFrame]:
+    """Classify per-feature missing-data mechanism and plot the result.
+
+    For each feature, compares the per-sample mean abundance of samples where
+    the feature is detected against samples where it is missing (one-sided
+    Mann-Whitney U). Significantly higher present-side means => MNAR (the
+    feature drops out preferentially in low-abundance samples).
+
+    Parameters
+    ----------
+    df : DataFrame
+        features (rows) x samples (columns). NaN = missing.
+    method : str
+        Classification method. Only "mannwhitneyu" is implemented for v0.2.0.
+    alpha : float
+        Significance threshold for the MNAR call.
+    min_present : int
+        Minimum non-missing AND non-present samples required to test a feature.
+        Features below this threshold are classified "INSUFFICIENT".
+    feature_type : str
+        "PROT" | "GENE" | "PEPTIDE".
+    show_scatter : bool
+        Show the abundance-vs-missing-rate scatter panel.
+    title : str, optional
+        Figure title. None => auto from feature_type.
+    subtitle : str
+        Italic line below the title.
+    figsize : tuple, optional
+        Auto-sized when None.
+    fontsize : int
+        Base font size.
+    save : str, optional
+        Path to save the figure.
+    dpi : int
+        Save resolution.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    classification : DataFrame
+        Columns: feature, mechanism, missing_rate, mean_abundance, p_value.
+        mechanism is one of {"MNAR", "MAR", "MCAR", "INSUFFICIENT"}.
+    """
+    if method != "mannwhitneyu":
+        raise ValueError(
+            f"method must be 'mannwhitneyu' (only option in v0.2.0). Got: {method!r}"
+        )
+    fl = _get_feature_labels(feature_type)
+    classification = _classify_mechanism(df, min_present=min_present, alpha=alpha)
+
+    if title is None:
+        title = f"Missing-data mechanism ({fl['plural']})"
+
+    # Stable category order for plotting
+    categories = ["MNAR", "MAR", "MCAR", "INSUFFICIENT"]
+    counts = classification["mechanism"].value_counts().reindex(categories, fill_value=0)
+
+    # Literature-standard colours
+    colors = {
+        "MNAR": "#C44E52",
+        "MAR": "#E1A050",
+        "MCAR": "#4C72B0",
+        "INSUFFICIENT": "#8C8C8C",
+    }
+
+    if figsize is None:
+        figsize = (12, 5) if show_scatter else (6, 4)
+
+    if show_scatter:
+        fig, (ax_bar, ax_sc) = plt.subplots(
+            1, 2, figsize=figsize, facecolor="white",
+            gridspec_kw={"width_ratios": [1, 1.6], "wspace": 0.3},
+        )
+    else:
+        fig, ax_bar = plt.subplots(figsize=figsize, facecolor="white")
+        ax_sc = None
+
+    # --- Bar chart ---
+    y_pos = np.arange(len(categories))
+    bar_colors = [colors[c] for c in categories]
+    ax_bar.barh(y_pos, counts.values, color=bar_colors, edgecolor="white")
+    ax_bar.set_yticks(y_pos)
+    ax_bar.set_yticklabels(categories, fontsize=fontsize)
+    ax_bar.invert_yaxis()
+    ax_bar.set_xlabel(f"Number of {fl['plural']}", fontsize=fontsize)
+
+    max_count = int(counts.max()) if len(counts) else 0
+    for i, v in enumerate(counts.values):
+        if v > 0:
+            ax_bar.text(
+                v + max(max_count * 0.02, 0.5),
+                i,
+                f"{int(v)}",
+                va="center",
+                fontsize=fontsize - 1,
+            )
+
+    ax_bar.spines["top"].set_visible(False)
+    ax_bar.spines["right"].set_visible(False)
+    ax_bar.tick_params(labelsize=fontsize - 1)
+
+    # --- Scatter ---
+    if ax_sc is not None and len(classification) > 0:
+        for cat in categories:
+            sub = classification[classification["mechanism"] == cat]
+            if len(sub) == 0:
+                continue
+            ax_sc.scatter(
+                sub["mean_abundance"],
+                sub["missing_rate"],
+                c=colors[cat],
+                s=15,
+                alpha=0.6,
+                edgecolors="none",
+                label=f"{cat} (n={len(sub)})",
+            )
+        ax_sc.set_xlabel(f"Mean abundance ({fl['singular']})", fontsize=fontsize)
+        ax_sc.set_ylabel("Missing rate", fontsize=fontsize)
+        ax_sc.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(xmax=1))
+        ax_sc.legend(fontsize=fontsize - 2, loc="upper right", frameon=False)
+        ax_sc.spines["top"].set_visible(False)
+        ax_sc.spines["right"].set_visible(False)
+        ax_sc.tick_params(labelsize=fontsize - 1)
+
+    # Adjust spacing manually rather than tight_layout (avoids gridspec/suptitle conflict)
+    fig.subplots_adjust(left=0.10, right=0.97, bottom=0.13, top=0.88 if title else 0.95)
+    if title:
+        fig.suptitle(title, fontsize=fontsize + 2, fontweight="bold", y=0.98)
+    if subtitle:
+        fig.text(
+            0.5, 0.92, subtitle, ha="center",
+            fontsize=fontsize - 1, fontstyle="italic", color="#666666",
+        )
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    return fig, classification
+
+def comissing_heatmap(
+    df: pd.DataFrame,
+    *,
+    top_n: int = 50,
+    cluster: bool = True,
+    method: str = "average",
+    feature_type: str = "PROT",
+    cmap: str = "Blues",
+    title: str | None = None,
+    subtitle: str = "",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+    return_data: bool = False,
+) -> plt.Figure:
+    """Heatmap of pairwise co-missingness for the top_n most-missing features.
+
+    Cell (i, j) = fraction of samples where features i and j are simultaneously
+    missing. Tight clusters indicate co-dropping protein complexes, batch
+    failures, or correlated low-abundance features.
+
+    Parameters
+    ----------
+    df : DataFrame
+        features (rows) x samples (columns). NaN = missing.
+    top_n : int
+        Number of most-missing features to display.
+    cluster : bool
+        Hierarchically cluster features by co-missingness pattern.
+    method : str
+        scipy linkage method ("average", "complete", "ward", etc.).
+    feature_type : str
+        "PROT" | "GENE" | "PEPTIDE".
+    cmap : str
+        matplotlib colormap.
+    title, subtitle : str
+        Title / subtitle.
+    figsize : tuple, optional
+        Auto-sized when None.
+    fontsize : int
+        Base font size.
+    save : str, optional
+        Path to save the figure.
+    dpi : int
+        Save resolution.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    fl = _get_feature_labels(feature_type)
+    co_df = _comissing_matrix(df, top_n=top_n)
+
+    if title is None:
+        title = f"Co-missingness heatmap (top {len(co_df)} {fl['plural']})"
+
+    if figsize is None:
+        side = max(6.0, min(12.0, 0.15 * len(co_df) + 4))
+        figsize = (side, side)
+
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+
+    if cluster and len(co_df) > 1:
+        from scipy.spatial.distance import squareform
+        co_vals = co_df.values
+        dist = np.clip(1.0 - co_vals, 0.0, None)
+        np.fill_diagonal(dist, 0.0)
+        # Make sure dist is symmetric (floating-point safety)
+        dist = (dist + dist.T) / 2.0
+        try:
+            link = hierarchy.linkage(squareform(dist, checks=False), method=method)
+            order = hierarchy.leaves_list(link)
+            co_df = co_df.iloc[order, :].iloc[:, order]
+        except Exception:
+            pass
+
+    # Set diagonal to NaN so it doesn't dominate the colour scale
+    plot_values = co_df.values.astype(float).copy()
+    np.fill_diagonal(plot_values, np.nan)
+
+    vmax = float(np.nanmax(plot_values)) if plot_values.size and not np.all(np.isnan(plot_values)) else 1.0
+    if vmax <= 0:
+        vmax = 1.0
+
+    im = ax.imshow(plot_values, aspect="equal", cmap=cmap, vmin=0, vmax=vmax)
+
+    n = len(co_df)
+    if n <= 30 and n > 0:
+        ax.set_xticks(np.arange(n))
+        ax.set_yticks(np.arange(n))
+        ax.set_xticklabels(co_df.columns, rotation=90, fontsize=fontsize - 2)
+        ax.set_yticklabels(co_df.index, fontsize=fontsize - 2)
+    else:
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Fraction of samples co-missing", fontsize=fontsize - 1)
+    cbar.ax.tick_params(labelsize=fontsize - 2)
+
+    ax.set_xlabel(fl["cap_plural"], fontsize=fontsize)
+    ax.set_ylabel(fl["cap_plural"], fontsize=fontsize)
+
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+    if subtitle:
+        ax.text(
+            0.5, 1.02, subtitle, transform=ax.transAxes, ha="center",
+            fontsize=fontsize - 1, fontstyle="italic", color="#666666",
+        )
+
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    if return_data:
+        return fig, _data_comissing_heatmap(df, top_n=top_n)
+    return fig
+
+def _data_missing_matrix(df: pd.DataFrame) -> pd.DataFrame:
+    """Long-form schema for missing_matrix: columns [feature, sample, missing]."""
+    if isinstance(df.columns, pd.MultiIndex):
+        df_flat = df.copy()
+        df_flat.columns = pd.Index(
+            ["__".join(str(x) for x in c) for c in df_flat.columns]
+        )
+    else:
+        df_flat = df
+    long = df_flat.isna().stack(future_stack=True).reset_index()
+    long.columns = ["feature", "sample", "missing"]
+    long["feature"] = long["feature"].astype(str)
+    long["sample"] = long["sample"].astype(str)
+    return long
+
+def _data_completeness_bars(df: pd.DataFrame, group_level) -> pd.DataFrame:
+    """Schema: columns [group, completeness, n_samples]."""
+    if isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        groups = np.array([t[gl] for t in df.columns])
+    else:
+        # Treat the whole df as one synthetic group, matching plot behavior.
+        groups = np.array(["all_samples"] * df.shape[1])
+    rows = []
+    for g in pd.unique(groups):
+        mask = groups == g
+        sub = df.iloc[:, mask]
+        # Mean per-sample detection rate within the group
+        comp = float(sub.notna().mean(axis=0).mean()) if mask.any() else 0.0
+        rows.append((g, comp, int(mask.sum())))
+    return pd.DataFrame(rows, columns=["group", "completeness", "n_samples"])
+
+def _data_detection_waterfall(df: pd.DataFrame) -> pd.DataFrame:
+    """Schema: columns [feature, detection_rate, rank]."""
+    rates = df.notna().mean(axis=1).sort_values(ascending=False)
+    return pd.DataFrame(
+        {
+            "feature": [str(x) for x in rates.index],
+            "detection_rate": rates.values.astype(float),
+            "rank": np.arange(1, len(rates) + 1, dtype=int),
+        }
+    )
+
+def _data_missing_runorder(df, run_order=None, group_level=None) -> pd.DataFrame:
+    """Schema: columns [sample, run_order, missing_rate, group]."""
+    missing_rate = df.isna().mean(axis=0).values.astype(float)
+    sample_names = [str(c) for c in df.columns]
+    if run_order is None:
+        ro = np.arange(len(df.columns), dtype=float)
+    else:
+        ro = np.asarray(run_order, dtype=float)
+    groups = [None] * len(df.columns)
+    if group_level is not None and isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        groups = [t[gl] for t in df.columns]
+    return pd.DataFrame(
+        {
+            "sample": sample_names,
+            "run_order": ro,
+            "missing_rate": missing_rate,
+            "group": groups,
+        }
+    )
+
+def _data_comissing_heatmap(df: pd.DataFrame, top_n: int = 50) -> pd.DataFrame:
+    """Long-form schema: columns [feature_a, feature_b, comissingness]. Upper triangle only."""
+    co_df = _comissing_matrix(df, top_n=top_n)
+    cols = ["feature_a", "feature_b", "comissingness"]
+    if len(co_df) < 2:
+        return pd.DataFrame(columns=cols)
+    n = len(co_df)
+    iu = np.triu_indices(n, k=1)
+    names = list(co_df.index)
+    rows = [
+        (names[i], names[j], float(co_df.iloc[i, j])) for i, j in zip(iu[0], iu[1])
+    ]
+    return pd.DataFrame(rows, columns=cols)
+
+_RETURN_DATA_SCHEMAS = {
+    "missing_matrix": ["feature", "sample", "missing"],
+    "completeness_bars": ["group", "completeness", "n_samples"],
+    "detection_waterfall": ["feature", "detection_rate", "rank"],
+    "missing_runorder": ["sample", "run_order", "missing_rate", "group"],
+    "comissing_heatmap": ["feature_a", "feature_b", "comissingness"],
+}
+
+# Legacy alias for missing_matrix
+rna_missing_matrix = missing_matrix

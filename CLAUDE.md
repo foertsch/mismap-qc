@@ -2,24 +2,46 @@
 
 ## Package Overview
 
-**mismap-qc** is a Python visualization library for missing-data QC in proteomics and RNA-Seq. It produces publication-ready plots showing which features (proteins/genes/peptides) are detected vs missing across samples.
+**mismap-qc** is a Python library for **missing-data validation** in proteomics and RNA-Seq. It runs a battery of QC checks (sample completeness, outlier detection, MNAR/MAR mechanism classification, batch-effect tests, run-order drift), returns a structured `MismapReport`, and pairs every check with a publication-ready plot.
 
 - **Author:** Arion Foertsch (FGCZ)
-- **Main module:** `mismap_qc.py` (~1,500 lines, single file)
-- **Tests:** `tests/test_mismap_qc.py`
+- **Package:** `mismap_qc/` (split across submodules; see Architecture)
+- **Tests:** `tests/`
 - **License:** MIT
 
 ---
 
 ## Architecture
 
-### Single-file design
-All functions live in `mismap_qc.py`. This is intentional for easy installation (`pip install mismap-qc` or just copy the file). Don't split into submodules unless it exceeds ~3,000 lines.
+### Package layout
+As of 0.2.0 the project is split from a single `mismap_qc.py` into a `mismap_qc/` package:
+
+| Module | Lines | Contents |
+|---|---|---|
+| `mismap_qc/__init__.py` | ~100 | Public re-exports. `from mismap_qc import qc, missing_matrix, ...` works the same way. |
+| `mismap_qc/_core.py` | ~60 | Constants and layout helpers: `_PALETTES`, `FEATURE_TYPES`, `_get_feature_labels`, `_assign_colors`, `_clean_ax`, `_resolve_color_overrides`. |
+| `mismap_qc/stats.py` | ~190 | Pure-numeric analytical helpers shared by `qc()` and the plot functions: `_classify_mechanism`, `_top_codropouts`, `_comissing_matrix`, `_batch_missing_test`, `_runorder_trend`, `_compute_sample_outliers`, `_resolve_group_labels`. |
+| `mismap_qc/validation.py` | ~615 | Validation API: `MismapReport`, `RuleResult`, `MismapQCWarning`, `MismapQCFailure`, the 11-rule registry, `_evaluate_thresholds`, `qc()`, `assert_qc()`. |
+| `mismap_qc/plots.py` | ~1855 | All plot functions (`missing_matrix`, `missing_matrix_html`, `completeness_bars`, `detection_waterfall`, `missing_runorder`, `missing_mechanism`, `comissing_heatmap`, `missing_abundance_density`) plus the `_data_*` helpers and `_RETURN_DATA_SCHEMAS` registry that backs `return_data=True`. |
+| `mismap_qc/io.py` | ~155 | `from_anndata()` reader. `anndata` is an optional dependency. |
+| `mismap_qc/lod.py` | ~60 | `estimate_lod()`. Future Scope E items go here. |
+
+### Dependency graph
+```
+_core  <-  plots
+       <-  __init__
+stats  <-  plots
+       <-  validation
+       <-  __init__
+io, lod  <-  __init__
+```
+No circular imports. Plots and validation both depend on stats; neither depends on the other.
 
 ### Function categories
-1. **Primary plots** — User-facing visualization functions
-2. **Helper functions** — Prefixed with `_` (e.g., `_assign_colors`, `_get_feature_labels`)
-3. **Internal** — `_split_matrix` for split-by-factor rendering
+1. **Validation entry points** — `qc()`, `assert_qc()`, plus the `MismapReport` it returns.
+2. **Primary plots** — User-facing visualization functions.
+3. **Analytical helpers** — Underscore-prefixed numerical functions in `stats.py`; shared between `qc()` and plot wrappers (e.g. `missing_mechanism` wraps `_classify_mechanism`).
+4. **Internal layout helpers** — Underscore-prefixed in `_core.py` (`_assign_colors`, `_clean_ax`, etc.).
 
 ---
 
@@ -143,22 +165,32 @@ def test_new_function_returns_figure():
 
 ## Development Status
 
-### Wave 1 (current)
+### Wave 1 (complete in 0.2.0)
 - [x] `missing_matrix()` — Main nullity matrix
 - [x] `missing_matrix_html()` — Interactive HTML version
 - [x] `completeness_bars()` — Per-group completeness
 - [x] `detection_waterfall()` — Feature detection curve
 - [x] `missing_runorder()` — Missingness over time
-- [ ] `missing_mechanism()` — MNAR/MAR classification
-- [ ] `comissing_heatmap()` — Co-missingness patterns
+- [x] `missing_mechanism()` — MNAR/MAR classification (wraps `_classify_mechanism`)
+- [x] `comissing_heatmap()` — Co-missingness patterns (wraps `_comissing_matrix`)
 
-### Wave 2 (planned)
+### Validation API (new in 0.2.0)
+- [x] `qc()` / `assert_qc()` / `MismapReport`
+- [x] 11 threshold rules with error / warning / info severities
+- [x] `return_data=True` flag on every plot
+- [x] `from_anndata()` interop reader
+- [x] `estimate_lod()` (Scope E.1)
+
+### Wave 2 (planned, post-resubmission)
 - [ ] `missing_upset()` — UpSet plot of co-missingness
-- [ ] `sample_outlier_score()` — Outlier detection
-- [ ] `batch_missing_test()` — Statistical batch comparison
+- [ ] `sample_outlier_score()` — Outlier detection (currently inline in `qc()`)
+- [ ] `batch_missing_test()` — Statistical batch comparison (currently inline in `qc()`)
 - [ ] `missing_summary_report()` — HTML report generator
+- [ ] CLI (`mismap-qc qc data.tsv --thresholds rules.yml`)
+- [ ] Scope E.2/E.3 (`imputation_diagnostic`, `replicate_concordance`)
+- [ ] Search-engine parsers (`from_maxquant`, `from_diann`, `from_fragpipe`, `from_spectronaut`)
 
-See `docs/PLAN_new_plots.md` for full specifications.
+See `docs/PLAN_new_plots.md` and `docs/PLAN_validation_scope.md` for specs.
 
 ---
 
@@ -166,11 +198,17 @@ See `docs/PLAN_new_plots.md` for full specifications.
 
 | File | Purpose |
 |------|---------|
-| `mismap_qc.py` | All plot functions |
-| `tests/test_mismap_qc.py` | Main test suite |
-| `tests/conftest.py` | Shared test fixtures (cptac_df) |
-| `examples/cptac_proteomics.ipynb` | Real-world tutorial |
-| `docs/PLAN_new_plots.md` | Implementation roadmap |
+| `mismap_qc/` | The package. See Architecture for per-module breakdown. |
+| `tests/test_mismap_qc.py` | Plot function tests (synthetic data) |
+| `tests/test_validation_api.py` | qc / assert_qc / MismapReport tests |
+| `tests/test_return_data_schemas.py` | Schema regression test for `return_data=True` |
+| `tests/test_from_anndata.py` | AnnData reader tests |
+| `tests/test_estimate_lod.py` | LOD estimator tests |
+| `tests/conftest.py` | Shared CPTAC fixture (real-data tests skipped if absent) |
+| `examples/cptac_proteomics.ipynb` | Real-world tutorial (still uses v0.1 API; update pending) |
+| `docs/PLAN_new_plots.md` | Wave 1/2 plot roadmap |
+| `docs/PLAN_validation_scope.md` | Validation API + interop spec |
+| `CHANGELOG.md` | Per-version change log |
 | `demo.py` | Quick demo script (PEP 723) |
 
 ---
@@ -180,13 +218,18 @@ See `docs/PLAN_new_plots.md` for full specifications.
 ### Do
 - Add `feature_type` parameter to any function that labels features
 - Use `_get_feature_labels()` for all user-facing text
-- Include edge case tests (all-missing, all-present)
+- Put new code in the right submodule (plots, stats, validation, io, lod). When in doubt, plots.py is the default for figure-returning functions; stats.py for numeric-returning ones
+- Re-export new public names in `mismap_qc/__init__.py`
+- Add `return_data=True` support to any new plot function, with the schema registered in `_RETURN_DATA_SCHEMAS`
+- Add the matching schema test in `tests/test_return_data_schemas.py`
+- Include edge case tests (all-missing, all-present, MultiIndex)
 - Follow the function signature template
-- Keep functions in `mismap_qc.py` (single file)
 
 ### Don't
 - Don't hardcode "gene" or "protein" in labels
-- Don't create new submodules without discussion
+- Don't duplicate analytical logic between `qc()` and plot functions — share via `stats.py`
+- Don't add new rules to `_RULE_DEFAULT_SEVERITY` without also adding an evaluator in `_RULE_EVALUATORS` and a test
 - Don't skip `plt.close("all")` in tests
 - Don't use `sort_genes` (renamed to `sort_features`)
 - Don't break backwards compatibility without deprecation warnings
+- Don't reintroduce `mismap_qc.py` as a single file — the project crossed that threshold at 0.2.0

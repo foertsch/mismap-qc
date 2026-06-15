@@ -12,10 +12,12 @@ matplotlib.use("Agg")  # non-interactive backend for CI
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from mismap_qc import (
+    comissing_heatmap,
     completeness_bars,
     detection_waterfall,
     missing_matrix,
     missing_matrix_html,
+    missing_mechanism,
     missing_runorder,
 )
 
@@ -444,6 +446,158 @@ def test_missing_runorder_save_to_disk(tmp_path: Path):
 
     out = tmp_path / "runorder.png"
     missing_runorder(make_flat_df(), save=str(out))
+    assert out.exists()
+    assert out.stat().st_size > 0
+    plt.close("all")
+
+
+# ── missing_mechanism ─────────────────────────────────────────────────────────
+
+
+def test_missing_mechanism_returns_figure_and_df():
+    import matplotlib.pyplot as plt
+
+    fig, classification = missing_mechanism(make_flat_df())
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(classification, pd.DataFrame)
+    assert set(classification.columns) >= {
+        "feature", "mechanism", "missing_rate", "mean_abundance", "p_value",
+    }
+    assert set(classification["mechanism"].unique()) <= {
+        "MNAR", "MAR", "MCAR", "INSUFFICIENT",
+    }
+    plt.close("all")
+
+
+def test_missing_mechanism_multiindex():
+    import matplotlib.pyplot as plt
+
+    fig, classification = missing_mechanism(make_multiindex_df())
+    assert isinstance(fig, plt.Figure)
+    assert len(classification) > 0
+    plt.close("all")
+
+
+def test_missing_mechanism_no_scatter():
+    import matplotlib.pyplot as plt
+
+    fig, _ = missing_mechanism(make_flat_df(), show_scatter=False)
+    assert isinstance(fig, plt.Figure)
+    # Only one axes when scatter is off
+    assert len(fig.axes) == 1
+    plt.close("all")
+
+
+def test_missing_mechanism_all_missing():
+    import matplotlib.pyplot as plt
+
+    df = pd.DataFrame(
+        np.full((10, 5), np.nan),
+        index=[f"F{i}" for i in range(10)],
+        columns=[f"S{i}" for i in range(5)],
+    )
+    fig, classification = missing_mechanism(df)
+    assert isinstance(fig, plt.Figure)
+    # All features have no observations -> all INSUFFICIENT
+    assert (classification["mechanism"] == "INSUFFICIENT").all()
+    plt.close("all")
+
+
+def test_missing_mechanism_all_present():
+    import matplotlib.pyplot as plt
+
+    df = pd.DataFrame(
+        np.ones((10, 5)),
+        index=[f"F{i}" for i in range(10)],
+        columns=[f"S{i}" for i in range(5)],
+    )
+    fig, classification = missing_mechanism(df)
+    assert isinstance(fig, plt.Figure)
+    assert (classification["mechanism"] == "INSUFFICIENT").all()
+    plt.close("all")
+
+
+def test_missing_mechanism_invalid_method():
+    with pytest.raises(ValueError, match="method must be"):
+        missing_mechanism(make_flat_df(), method="quantile")
+
+
+def test_missing_mechanism_save_to_disk(tmp_path):
+    import matplotlib.pyplot as plt
+
+    out = tmp_path / "mech.png"
+    missing_mechanism(make_flat_df(), save=str(out))
+    assert out.exists()
+    assert out.stat().st_size > 0
+    plt.close("all")
+
+
+# ── comissing_heatmap ─────────────────────────────────────────────────────────
+
+
+def test_comissing_heatmap_returns_figure():
+    import matplotlib.pyplot as plt
+
+    fig = comissing_heatmap(make_flat_df())
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_multiindex():
+    import matplotlib.pyplot as plt
+
+    fig = comissing_heatmap(make_multiindex_df())
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_no_cluster():
+    import matplotlib.pyplot as plt
+
+    fig = comissing_heatmap(make_flat_df(), cluster=False)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_top_n_smaller_than_features():
+    import matplotlib.pyplot as plt
+
+    fig = comissing_heatmap(make_flat_df(n_genes=30), top_n=10)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_all_missing():
+    import matplotlib.pyplot as plt
+
+    df = pd.DataFrame(
+        np.full((10, 5), np.nan),
+        index=[f"F{i}" for i in range(10)],
+        columns=[f"S{i}" for i in range(5)],
+    )
+    fig = comissing_heatmap(df, top_n=5)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_all_present():
+    import matplotlib.pyplot as plt
+
+    df = pd.DataFrame(
+        np.ones((10, 5)),
+        index=[f"F{i}" for i in range(10)],
+        columns=[f"S{i}" for i in range(5)],
+    )
+    fig = comissing_heatmap(df, top_n=5)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_comissing_heatmap_save_to_disk(tmp_path):
+    import matplotlib.pyplot as plt
+
+    out = tmp_path / "comiss.png"
+    comissing_heatmap(make_flat_df(), save=str(out))
     assert out.exists()
     assert out.stat().st_size > 0
     plt.close("all")
