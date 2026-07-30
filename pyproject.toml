@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mismap-qc"
-version = "0.2.1"
+version = "0.2.2"
 description = "Missing-data validation for proteomics and RNA-Seq QC"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -44,6 +44,20 @@ Changelog = "https://github.com/foertsch/mismap-qc/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mismap_qc"]
+
+[tool.hatch.build.targets.sdist]
+# Without this, hatchling sweeps in the whole working tree: 2.2 MB of demo PNGs,
+# the CPTAC notebook, uv.lock, CLAUDE.md, DIARY.md and .claude/. An sdist should
+# be what you need to build and test the package, nothing else. tests/ stays in
+# deliberately so downstream packagers can verify a build.
+include = [
+    "mismap_qc/",
+    "tests/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "pyproject.toml",
+]
 
 [tool.ruff]
 target-version = "py310"
