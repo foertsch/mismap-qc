@@ -8,3 +8,7 @@ dist/
 output/*.html
 examples/output/*.html
 examples/data/
+
+
+# Local Claude Code context primer (personal, do not commit)
+CLAUDE.local.md

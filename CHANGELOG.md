@@ -4,6 +4,40 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-30
+
+Packaging and metadata release. No functional changes to the library; this is
+the first PyPI release that carries the 0.2.0 validation API.
+
+### Fixed
+
+- **Repository URL on PyPI.** The published 0.1.0 metadata pointed at
+  `github.com/afoertsch/mismap-qc`, which does not exist. Corrected in the repo
+  during 0.2.0 development but never published — this release ships the fix.
+- **Package description.** Was "Missing-data *matrix* for RNA-Seq and proteomics
+  QC", which framed the package as visualization. Now reads "Missing-data
+  *validation* for proteomics and RNA-Seq QC", matching the README and the
+  package's actual scope.
+- **CHANGELOG 0.2.0 notes** claimed the single-file design was preserved. 0.2.0
+  *is* the package split; the note contradicted the release it documented.
+
+### Added
+
+- Author email in package metadata.
+- `Documentation`, `Issues`, and `Changelog` entries under `[project.urls]`.
+- Python 3.13 to the CI test matrix and the trove classifiers.
+- `Operating System :: OS Independent` and
+  `Topic :: Scientific/Engineering :: Information Analysis` classifiers.
+- `ruff` to the `dev` extra, so `pip install -e ".[dev]"` provides both CI tools.
+- `tests/test_package_metadata.py` — guards version agreement between
+  `pyproject.toml` and `mismap_qc.__version__`, and the presence of the metadata
+  the packaging guidelines require.
+
+### Changed
+
+- Keywords: `visualization` replaced with `data-validation`.
+- Dropped the `Topic :: Scientific/Engineering :: Visualization` classifier.
+
 ## [0.2.0] - 2026-05-28
 
 The first release with a programmatic validation API. The package now exposes
@@ -58,9 +92,15 @@ that pair with it.
 
 ### Notes
 
-- Single-file design preserved. `mismap_qc.py` is ~2900 lines.
-- `feat/validation-api` branch contains the five checkpoint commits that
-  produced this release. See git log for the per-checkpoint scope.
+- **Package split.** The single-file `mismap_qc.py` (3,031 lines) was refactored
+  into a `mismap_qc/` package with seven submodules (`_core`, `stats`,
+  `validation`, `plots`, `io`, `lod`, `__init__`). The public API is unchanged —
+  `from mismap_qc import qc, missing_matrix, ...` works as before.
+- Developed on `feat/validation-api` over nine commits and squash-merged as
+  `5cd2f0a` ([#2](https://github.com/foertsch/mismap-qc/pull/2)); the PR retains
+  the per-checkpoint history.
+- Never published to PyPI. 0.2.1 is the first PyPI release to carry the
+  validation API.
 - Wave 2 plots (`missing_upset`, `sample_outlier_score`, `batch_missing_test`,
   `missing_summary_report`), additional Scope E items
   (`imputation_diagnostic`, `replicate_concordance`), search-engine output
