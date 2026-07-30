@@ -29,9 +29,14 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def project() -> dict:
+def pyproject() -> dict:
     with PYPROJECT.open("rb") as fh:
-        return tomllib.load(fh)["project"]
+        return tomllib.load(fh)
+
+
+@pytest.fixture(scope="module")
+def project(pyproject) -> dict:
+    return pyproject["project"]
 
 
 def test_version_matches_package(project):
@@ -58,6 +63,15 @@ def test_scope_framing_is_validation_not_visualization(project):
     assert "validation" in project["description"].lower()
     assert "visualization" not in project["keywords"]
     assert not any("Visualization" in c for c in project["classifiers"])
+
+
+def test_sdist_is_explicitly_scoped(pyproject):
+    """Hatchling's default sdist sweeps in the whole working tree (2.2 MB of demo
+    PNGs, notebooks, CLAUDE.md, .claude/). Keep the allowlist, and keep tests in it
+    so downstream packagers can verify a build."""
+    include = pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    assert "mismap_qc/" in include
+    assert "tests/" in include
 
 
 def test_classifiers_cover_supported_pythons(project):

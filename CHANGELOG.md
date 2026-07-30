@@ -4,6 +4,22 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-07-30
+
+Packaging release. No functional changes to the library.
+
+### Fixed
+
+- **Source distribution contents.** With no sdist configuration, hatchling swept
+  in the entire working tree: the sdist was 2.2 MB and shipped
+  `examples/output/*.png` (879 KB for one file), the CPTAC notebook, `uv.lock`,
+  `CLAUDE.md`, `DIARY.md`, the pre-rename `pretty_missing.py` shim, and
+  `.claude/settings.local.json`. `[tool.hatch.build.targets.sdist]` now declares
+  an explicit allowlist: the package, the test suite, README, CHANGELOG, LICENSE,
+  and `pyproject.toml`. The wheel was never affected.
+
+  `tests/` is included deliberately, so downstream packagers can verify a build.
+
 ## [0.2.1] - 2026-07-30
 
 Packaging and metadata release. No functional changes to the library; this is
