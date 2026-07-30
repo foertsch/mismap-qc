@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -35,4 +35,6 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Run ruff
-        run: uv run --with ruff ruff check .
+        # Pinned: an unpinned `--with ruff` silently changes what the lint job
+        # enforces whenever ruff releases. Bump deliberately.
+        run: uv run --with ruff==0.16.0 ruff check .

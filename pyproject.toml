@@ -4,23 +4,25 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mismap-qc"
-version = "0.2.0"
-description = "Missing-data matrix for RNA-Seq and proteomics QC"
+version = "0.2.1"
+description = "Missing-data validation for proteomics and RNA-Seq QC"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Arion Foertsch" }]
-keywords = ["bioinformatics", "rna-seq", "proteomics", "visualization", "missing-data", "qc"]
+authors = [{ name = "Arion Foertsch", email = "arion.foertsch@fgcz.uzh.ch" }]
+keywords = ["bioinformatics", "rna-seq", "proteomics", "data-validation", "missing-data", "qc"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "numpy",
@@ -32,10 +34,13 @@ dependencies = [
 [project.optional-dependencies]
 interactive = ["plotly"]
 anndata = ["anndata"]
-dev = ["pytest", "plotly", "anndata"]
+dev = ["pytest", "ruff", "plotly", "anndata"]
 
 [project.urls]
 Repository = "https://github.com/foertsch/mismap-qc"
+Documentation = "https://github.com/foertsch/mismap-qc#readme"
+Issues = "https://github.com/foertsch/mismap-qc/issues"
+Changelog = "https://github.com/foertsch/mismap-qc/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mismap_qc"]
@@ -47,3 +52,10 @@ exclude = [
     "examples",
     "*.ipynb",
 ]
+
+[tool.ruff.lint]
+# Pinned explicitly rather than relying on ruff's defaults: the CI lint job
+# installs the latest ruff, and a default-rule-set expansion in 0.16 turned a
+# green build into 45 errors without a line of code changing. Widening this
+# selection is a deliberate decision, not a side effect of a ruff release.
+select = ["E4", "E7", "E9", "F"]
