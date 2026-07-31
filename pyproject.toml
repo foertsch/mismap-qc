@@ -9,7 +9,7 @@ description = "Missing-data validation for proteomics and RNA-Seq QC"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Arion Förtsch", email = "arion.foertsch@fgcz.uzh.ch" }]
+authors = [{ name = "Arion Förtsch", email = "foertsch.arion@gmail.com" }]
 keywords = ["bioinformatics", "rna-seq", "proteomics", "data-validation", "missing-data", "qc"]
 classifiers = [
     "Development Status :: 3 - Alpha",

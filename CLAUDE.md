@@ -4,7 +4,7 @@
 
 **mismap-qc** is a Python library for **missing-data validation** in proteomics and RNA-Seq. It runs a battery of QC checks (sample completeness, outlier detection, MNAR/MAR mechanism classification, batch-effect tests, run-order drift), returns a structured `MismapReport`, and pairs every check with a publication-ready plot.
 
-- **Author:** Arion Foertsch (FGCZ)
+- **Author:** Arion Förtsch (FGCZ). Contact for package metadata and conduct reports is `foertsch.arion@gmail.com`, deliberately personal rather than institutional so it outlives the current role.
 - **Package:** `mismap_qc/` (split across submodules; see Architecture)
 - **Tests:** `tests/`
 - **License:** MIT
