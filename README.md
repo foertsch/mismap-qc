@@ -296,3 +296,25 @@ Creates `data/toy_rnaseq.csv`: 80 genes x 30 samples with structured missingness
 - scipy
 - pandas
 - plotly (optional, for HTML export only)
+
+## Contributing
+
+Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development install, how to run the tests and linter, and the conventions for adding a check or a plot. Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Development install:
+
+```bash
+git clone https://github.com/foertsch/mismap-qc.git
+cd mismap-qc
+uv sync --extra dev      # or: pip install -e ".[dev]"
+```
+
+## Citation
+
+If you use mismap-qc in published work, please cite it. Machine-readable metadata is in [CITATION.cff](CITATION.cff); GitHub renders it as "Cite this repository" in the sidebar.
+
+> Förtsch, A. (2026). *mismap-qc: missing-data validation for proteomics and RNA-Seq* (version 0.2.2). https://github.com/foertsch/mismap-qc
+
+## License
+
+MIT. See [LICENSE](LICENSE).
