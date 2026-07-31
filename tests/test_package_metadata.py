@@ -12,6 +12,7 @@ Skipped on Python 3.10, which has no stdlib TOML parser.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -63,6 +64,33 @@ def test_scope_framing_is_validation_not_visualization(project):
     assert "validation" in project["description"].lower()
     assert "visualization" not in project["keywords"]
     assert not any("Visualization" in c for c in project["classifiers"])
+
+
+def test_citation_file_tracks_the_package_version(project):
+    """CITATION.cff carries its own version field, so a release bump has to touch it
+    too. Parsed by hand to avoid a PyYAML dependency in a bare CI environment."""
+    citation = PYPROJECT.parent / "CITATION.cff"
+    assert citation.exists(), "CITATION.cff is required for citation metadata"
+    text = citation.read_text(encoding="utf-8")
+    match = re.search(r"^version:\s*(\S+)\s*$", text, re.MULTILINE)
+    assert match, "CITATION.cff has no top-level version field"
+    assert match.group(1).strip('"\'') == project["version"]
+    assert "repository-code: https://github.com/foertsch/mismap-qc" in text
+
+
+def test_required_community_files_exist():
+    """pyOpenSci's editor-in-chief check looks for these by name before review starts."""
+    root = PYPROJECT.parent
+    for name in ("README.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "LICENSE"):
+        assert (root / name).exists(), f"missing required repo file: {name}"
+
+
+def test_code_of_conduct_names_a_reporting_contact():
+    """The Contributor Covenant ships with an [INSERT CONTACT METHOD] placeholder.
+    A code of conduct with no route for reporting is decoration."""
+    text = (PYPROJECT.parent / "CODE_OF_CONDUCT.md").read_text(encoding="utf-8")
+    assert "INSERT CONTACT METHOD" not in text
+    assert "@" in text
 
 
 def test_sdist_is_explicitly_scoped(pyproject):

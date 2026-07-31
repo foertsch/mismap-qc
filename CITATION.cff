@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: If you use mismap-qc in work you publish, please cite it.
+title: "mismap-qc: missing-data validation for proteomics and RNA-Seq"
+abstract: >-
+  A Python library for missing-data validation in proteomics and RNA-Seq
+  experiments. Runs QC checks for sample completeness, outlier samples,
+  MNAR versus MAR dropout mechanism, batch effects and run-order drift,
+  returns a structured report that can gate a pipeline, and pairs every
+  check with a matching plot.
+type: software
+authors:
+  - given-names: Arion
+    family-names: Foertsch
+    email: arion.foertsch@fgcz.uzh.ch
+    affiliation: Functional Genomics Center Zurich (ETH Zurich / University of Zurich)
+version: 0.2.2
+date-released: "2026-07-30"
+license: MIT
+repository-code: https://github.com/foertsch/mismap-qc
+url: https://github.com/foertsch/mismap-qc
+keywords:
+  - bioinformatics
+  - proteomics
+  - rna-seq
+  - data-validation
+  - missing-data
+  - quality-control
