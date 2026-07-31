@@ -76,6 +76,8 @@ def test_citation_file_tracks_the_package_version(project):
     assert match, "CITATION.cff has no top-level version field"
     assert match.group(1).strip('"\'') == project["version"]
     assert "repository-code: https://github.com/foertsch/mismap-qc" in text
+    # Verified against the ORCID public API, which registers this iD to Arion Förtsch.
+    assert re.search(r"orcid: https://orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dX]", text)
 
 
 def test_required_community_files_exist():

@@ -313,7 +313,7 @@ uv sync --extra dev      # or: pip install -e ".[dev]"
 
 If you use mismap-qc in published work, please cite it. Machine-readable metadata is in [CITATION.cff](CITATION.cff); GitHub renders it as "Cite this repository" in the sidebar.
 
-> Foertsch, A. (2026). *mismap-qc: missing-data validation for proteomics and RNA-Seq* (version 0.2.2). https://github.com/foertsch/mismap-qc
+> Förtsch, A. (2026). *mismap-qc: missing-data validation for proteomics and RNA-Seq* (version 0.2.2). https://github.com/foertsch/mismap-qc
 
 ## License
 

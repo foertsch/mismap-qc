@@ -13,8 +13,9 @@ All notable changes to mismap-qc. Format roughly follows
   tests a new function needs, the pull request flow, and the release steps.
 - **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1) with a named reporting
   contact.
-- **`CITATION.cff`** so GitHub renders "Cite this repository", plus a Citation
-  section, a Contributing section, and a License section in the README.
+- **`CITATION.cff`** so GitHub renders "Cite this repository", including ORCID
+  `0000-0003-0409-6209`, plus a Citation section, a Contributing section, and a
+  License section in the README.
 - Four guards in `tests/test_package_metadata.py`: `CITATION.cff`'s version field
   must match `pyproject.toml`, the four repo files the pyOpenSci editor check
   looks for must exist, and the code of conduct must not still carry the
@@ -22,6 +23,8 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Changed
 
+- Author name in package metadata is now spelled **Förtsch**, matching the ORCID
+  record and `CITATION.cff`. Published 0.1.0 metadata says "Foertsch".
 - The sdist allowlist now includes `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
   `CITATION.cff`. Without them the shipped test suite failed when run from an
   extracted source distribution, which CI does not exercise.
