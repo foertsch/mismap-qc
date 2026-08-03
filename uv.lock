@@ -676,9 +676,13 @@ dev = [
     { name = "plotly" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "upsetplot" },
 ]
 interactive = [
     { name = "plotly" },
+]
+upset = [
+    { name = "upsetplot" },
 ]
 
 [package.metadata]
@@ -693,8 +697,10 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scipy" },
+    { name = "upsetplot", marker = "extra == 'dev'" },
+    { name = "upsetplot", marker = "extra == 'upset'" },
 ]
-provides-extras = ["interactive", "anndata", "dev"]
+provides-extras = ["interactive", "anndata", "upset", "dev"]
 
 [[package]]
 name = "narwhals"
@@ -1507,6 +1513,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
 ]
+
+[[package]]
+name = "upsetplot"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "pandas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/63/a5a1628898729bcfb67ea785a152e424d78e0f57dfbba46213a652532d6a/UpSetPlot-0.9.0.tar.gz", hash = "sha256:95b76ac38c624c9dfb1eca1de1a37e30e07e83678b1c57839c943184247b8592", size = 23797, upload-time = "2023-12-31T01:07:59.185Z" }
 
 [[package]]
 name = "zarr"

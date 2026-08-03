@@ -297,6 +297,51 @@ Creates `data/toy_rnaseq.csv`: 80 genes x 30 samples with structured missingness
 - pandas
 - plotly (optional, for HTML export only)
 
+## `missing_upset()` -- co-missingness intersections
+
+Which *combinations* of samples share missing features. For each intersection, how many features are missing in exactly that combination and no others. At small n this is what separates technical dropout from biology: if two replicates always lose the same proteins together, that is not biology.
+
+Requires `upsetplot` (`pip install mismap-qc[upset]`).
+
+```python
+from mismap_qc import missing_upset
+
+fig, table = missing_upset(df, max_intersections=12, return_data=True)
+```
+
+![upset](output/demo_upset.png)
+
+The example above recovers two real patterns: `Fresh3` alone accounts for 60 features (one bad sample), and `Cond2|Cond3` shares 34 (a co-dropping pair).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `by` | `str \| int` | `"sample"` | `"sample"` for one set per sample, or a column level name/index for one set per group |
+| `group_min_frac` | `float` | `0.5` | Group mode only. A feature counts as missing in a group once it is missing in at least this fraction of the group's samples |
+| `min_size` | `int` | `1` | Intersections smaller than this are not drawn |
+| `max_intersections` | `int` | `50` | Draw at most this many intersections, largest first |
+| `feature_type` | `str` | `"PROT"` | `"PROT"`, `"GENE"`, or `"PEPTIDE"` |
+| `return_data` | `bool` | `False` | Return `(Figure, DataFrame)` |
+
+Intersection count grows quickly with sample count, so the plot caps at the 50 largest by default. Truncation is stated on the figure ("showing the 12 largest of 33 intersections") and `return_data=True` still returns **every** intersection, with a `plotted` column marking what made the cut. Nothing is silently dropped.
+
+Every feature with at least one missing value belongs to exactly one intersection, so the returned table has one row per feature:
+
+| Column | Description |
+|---|---|
+| `feature` | Feature ID |
+| `members` | The samples or groups it is missing in, pipe-joined (`"Cond2\|Cond3"`) |
+| `n_features` | Size of that intersection |
+| `rank` | Intersection rank by size, 1 = largest |
+| `plotted` | Whether it survived `min_size` and `max_intersections` |
+
+Which makes the follow-up question a one-liner:
+
+```python
+table.query("members == 'Cond2|Cond3'").feature   # proteins lost in exactly those two
+```
+
+Fully detected features carry no intersection information and are excluded.
+
 ## Contributing
 
 Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development install, how to run the tests and linter, and the conventions for adding a check or a plot. Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).

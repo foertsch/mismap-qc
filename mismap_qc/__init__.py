@@ -7,7 +7,7 @@ Public API (re-exported here for backwards compatibility):
     MismapQCWarning          -- warning category for warning-severity rules
     missing_matrix, missing_matrix_html, missing_abundance_density,
     completeness_bars, detection_waterfall, missing_runorder,
-    missing_mechanism, comissing_heatmap -- plot functions
+    missing_mechanism, comissing_heatmap, missing_upset -- plot functions
     from_anndata             -- AnnData reader
     estimate_lod             -- per-feature LOD
 
@@ -33,6 +33,7 @@ from .plots import (
     missing_matrix_html,
     missing_mechanism,
     missing_runorder,
+    missing_upset,
     rna_missing_matrix,  # legacy alias for missing_matrix
 )
 from .validation import (
@@ -93,6 +94,7 @@ __all__ = [
     "missing_runorder",
     "missing_mechanism",
     "comissing_heatmap",
+    "missing_upset",
     "from_anndata",
     "estimate_lod",
     "FEATURE_TYPES",
