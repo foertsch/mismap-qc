@@ -34,7 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 interactive = ["plotly"]
 anndata = ["anndata"]
-dev = ["pytest", "ruff", "plotly", "anndata"]
+upset = ["upsetplot"]
+dev = ["pytest", "ruff", "plotly", "anndata", "upsetplot"]
 
 [project.urls]
 Repository = "https://github.com/foertsch/mismap-qc"

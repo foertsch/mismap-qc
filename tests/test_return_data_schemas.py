@@ -24,6 +24,7 @@ from mismap_qc import (  # noqa: E402
     detection_waterfall,
     missing_matrix,
     missing_runorder,
+    missing_upset,
 )
 
 
@@ -56,12 +57,24 @@ _CASES = [
     (detection_waterfall, {}, "detection_waterfall"),
     (missing_runorder, {}, "missing_runorder"),
     (comissing_heatmap, {"top_n": 10}, "comissing_heatmap"),
+    (missing_upset, {}, "missing_upset"),
 ]
+
+# missing_upset is the only plot behind an optional dependency.
+_NEEDS_EXTRA = {"missing_upset": "upsetplot"}
+
+
+def _skip_without_extra(plot_fn):
+    extra = _NEEDS_EXTRA.get(plot_fn.__name__)
+    if extra:
+        pytest.importorskip(extra, reason=f"{plot_fn.__name__} needs {extra}")
 
 
 @pytest.mark.parametrize("plot_fn,kwargs,schema_key", _CASES)
 def test_return_data_returns_tuple(plot_fn, kwargs, schema_key):
     import matplotlib.pyplot as plt
+
+    _skip_without_extra(plot_fn)
 
     df = _make_multi() if "group_level" in kwargs else _make_df()
     result = plot_fn(df, return_data=True, **kwargs)
@@ -79,6 +92,7 @@ def test_return_data_returns_tuple(plot_fn, kwargs, schema_key):
 def test_return_data_schema_columns(plot_fn, kwargs, schema_key):
     import matplotlib.pyplot as plt
 
+    _skip_without_extra(plot_fn)
     df = _make_multi() if "group_level" in kwargs else _make_df()
     _, data = plot_fn(df, return_data=True, **kwargs)
     expected = _RETURN_DATA_SCHEMAS[schema_key]
@@ -95,6 +109,7 @@ def test_return_data_default_is_figure_only(plot_fn, kwargs, schema_key):
     """Default behavior (no return_data flag) returns just a Figure."""
     import matplotlib.pyplot as plt
 
+    _skip_without_extra(plot_fn)
     df = _make_multi() if "group_level" in kwargs else _make_df()
     result = plot_fn(df, **kwargs)
     assert isinstance(result, plt.Figure)

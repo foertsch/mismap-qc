@@ -191,3 +191,112 @@ def _comissing_matrix(df: pd.DataFrame, *, top_n: int = 50) -> pd.DataFrame:
     n_samples = M.shape[1]
     co = (Mf @ Mf.T) / n_samples
     return pd.DataFrame(co, index=names, columns=names)
+
+
+def _upset_set_names(df: pd.DataFrame) -> list[str]:
+    """Sample-axis set names for UpSet membership.
+
+    Uses the innermost MultiIndex level, which is the sample identifier by
+    convention. Falls back to the full tuple when innermost labels are not
+    unique, because UpSet set names have to be distinct.
+    """
+    if isinstance(df.columns, pd.MultiIndex):
+        inner = [str(t[-1]) for t in df.columns]
+        if len(set(inner)) == len(inner):
+            return inner
+        return [str(tuple(t)) for t in df.columns]
+    return [str(c) for c in df.columns]
+
+
+def _upset_intersections(
+    df: pd.DataFrame,
+    *,
+    by="sample",
+    group_min_frac: float = 0.5,
+    min_size: int = 1,
+    max_intersections: int = 50,
+) -> pd.DataFrame:
+    """Per-feature co-missingness intersections for missing_upset().
+
+    Every feature with at least one missing value belongs to exactly one
+    intersection: the set of samples (or groups) it is missing in. That makes one
+    row per feature both complete and non-redundant. Fully detected features carry
+    no intersection information and are excluded.
+
+    Parameters
+    ----------
+    df : DataFrame
+        features (rows) x samples (columns). NaN = missing.
+    by : str or int
+        ``"sample"`` for one set per sample, otherwise a MultiIndex level name or
+        index for one set per group.
+    group_min_frac : float
+        Group mode only. A feature counts as missing in a group when it is missing
+        in at least this fraction of the group's samples.
+    min_size : int
+        Intersections with fewer features than this are not plotted.
+    max_intersections : int
+        Only the largest this many intersections are plotted.
+
+    Returns
+    -------
+    DataFrame
+        Columns [feature, members, n_features, rank, plotted]. ``members`` is the
+        pipe-joined set names, ``n_features`` the intersection size, ``rank`` its
+        rank by size (1 = largest), and ``plotted`` whether it survives min_size
+        and max_intersections. Rows outside the cap are still returned, so nothing
+        is silently truncated.
+    """
+    cols = ["feature", "members", "n_features", "rank", "plotted"]
+    nulls = df.isna()
+    if nulls.empty:
+        return pd.DataFrame(columns=cols)
+
+    if isinstance(by, str) and by == "sample":
+        set_names = _upset_set_names(df)
+        member_masks = [(name, nulls.iloc[:, j].values) for j, name in enumerate(set_names)]
+    else:
+        _, groups = _resolve_group_labels(df, by)
+        member_masks = []
+        for g in pd.unique(groups):
+            in_group = groups == g
+            frac = nulls.loc[:, in_group].mean(axis=1).values
+            member_masks.append((str(g), frac >= group_min_frac))
+
+    memberships = [[] for _ in range(len(df))]
+    for name, mask in member_masks:
+        for i in np.nonzero(np.asarray(mask))[0]:
+            memberships[i].append(name)
+
+    rows = [
+        (str(feature), tuple(members))
+        for feature, members in zip(df.index, memberships)
+        if members
+    ]
+    if not rows:
+        return pd.DataFrame(columns=cols)
+
+    sizes: dict[tuple, int] = {}
+    for _, members in rows:
+        sizes[members] = sizes.get(members, 0) + 1
+
+    # Deterministic ordering: size descending, then fewer members, then name.
+    ordered = sorted(sizes.items(), key=lambda kv: (-kv[1], len(kv[0]), "|".join(kv[0])))
+    ranks = {members: i + 1 for i, (members, _) in enumerate(ordered)}
+
+    out = pd.DataFrame(
+        [
+            {
+                "feature": feature,
+                "members": "|".join(members),
+                "n_features": sizes[members],
+                "rank": ranks[members],
+                "plotted": bool(
+                    sizes[members] >= min_size and ranks[members] <= max_intersections
+                ),
+            }
+            for feature, members in rows
+        ],
+        columns=cols,
+    )
+    return out.sort_values(["rank", "feature"], ignore_index=True)

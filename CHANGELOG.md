@@ -8,6 +8,23 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Added
 
+- **`missing_upset()`** ([#4](https://github.com/foertsch/mismap-qc/issues/4)), the
+  first Wave 2 plot. UpSet plot of which sample combinations share missing
+  features: for each intersection, how many features are missing in exactly that
+  combination. Answers whether particular replicates lose the same features
+  together, which bar charts cannot show and Venn diagrams cannot handle past three
+  sets. `by="sample"` for one set per sample, or a MultiIndex level name for one
+  set per group, where `group_min_frac=0.5` decides when a feature counts as lost
+  in a group.
+
+  Needs `upsetplot`, a new optional extra: `pip install mismap-qc[upset]`.
+
+  The plot caps at the 50 largest intersections by default, because intersection
+  count grows quickly with sample count. Truncation is annotated on the figure and
+  `return_data=True` returns every intersection with a `plotted` column, so nothing
+  is silently dropped. Schema: `[feature, members, n_features, rank, plotted]`, one
+  row per feature.
+
 - **`CONTRIBUTING.md`** covering the development install, how to run pytest and
   ruff, where code belongs by module, the naming and API conventions, the minimum
   tests a new function needs, the pull request flow, and the release steps.
@@ -23,6 +40,10 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Changed
 
+- CI gains a **`pytest (all extras)`** job. The version matrix installs no optional
+  dependencies on purpose, which proves the package works bare but left the plotly,
+  anndata and upsetplot paths skipped in CI. The new job installs every extra so
+  those actually run.
 - Author name in package metadata is now spelled **Förtsch**, matching the ORCID
   record and `CITATION.cff`. Published 0.1.0 metadata says "Foertsch".
 - The sdist allowlist now includes `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
@@ -54,7 +75,7 @@ the first PyPI release that carries the 0.2.0 validation API.
 
 - **Repository URL on PyPI.** The published 0.1.0 metadata pointed at
   `github.com/afoertsch/mismap-qc`, which does not exist. Corrected in the repo
-  during 0.2.0 development but never published — this release ships the fix.
+  during 0.2.0 development but never published, and this release ships the fix.
 - **Package description.** Was "Missing-data *matrix* for RNA-Seq and proteomics
   QC", which framed the package as visualization. Now reads "Missing-data
   *validation* for proteomics and RNA-Seq QC", matching the README and the
@@ -70,7 +91,7 @@ the first PyPI release that carries the 0.2.0 validation API.
 - `Operating System :: OS Independent` and
   `Topic :: Scientific/Engineering :: Information Analysis` classifiers.
 - `ruff` to the `dev` extra, so `pip install -e ".[dev]"` provides both CI tools.
-- `tests/test_package_metadata.py` — guards version agreement between
+- `tests/test_package_metadata.py`, guarding version agreement between
   `pyproject.toml` and `mismap_qc.__version__`, and the presence of the metadata
   the packaging guidelines require.
 
@@ -135,7 +156,7 @@ that pair with it.
 
 - **Package split.** The single-file `mismap_qc.py` (3,031 lines) was refactored
   into a `mismap_qc/` package with seven submodules (`_core`, `stats`,
-  `validation`, `plots`, `io`, `lod`, `__init__`). The public API is unchanged —
+  `validation`, `plots`, `io`, `lod`, `__init__`). The public API is unchanged:
   `from mismap_qc import qc, missing_matrix, ...` works as before.
 - Developed on `feat/validation-api` over nine commits and squash-merged as
   `5cd2f0a` ([#2](https://github.com/foertsch/mismap-qc/pull/2)); the PR retains

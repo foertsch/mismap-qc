@@ -1,6 +1,8 @@
 """Plot functions. Each returns a Figure; with return_data=True, returns (Figure, DataFrame)."""
 from __future__ import annotations
 
+import warnings as _warnings
+
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec  # noqa: F401  (used by some legacy plots)
 import matplotlib.patches as mpatches  # noqa: F401
@@ -17,7 +19,7 @@ from ._core import (
     _get_feature_labels,
     _resolve_color_overrides,
 )
-from .stats import _classify_mechanism, _comissing_matrix
+from .stats import _classify_mechanism, _comissing_matrix, _upset_intersections
 
 
 def missing_matrix(
@@ -1759,6 +1761,168 @@ def comissing_heatmap(
         return fig, _data_comissing_heatmap(df, top_n=top_n)
     return fig
 
+def missing_upset(
+    df: pd.DataFrame,
+    *,
+    by="sample",
+    group_min_frac: float = 0.5,
+    min_size: int = 1,
+    max_intersections: int = 50,
+    feature_type: str = "PROT",
+    title: str | None = None,
+    subtitle: str = "",
+    figsize: tuple[float, float] | None = None,
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+    return_data: bool = False,
+) -> plt.Figure:
+    """UpSet plot of which sample combinations share missing features.
+
+    For each intersection of samples (or groups), shows how many features are
+    missing in exactly that combination and no others. Bar charts show totals and
+    Venn diagrams stop working past three sets; this answers whether particular
+    replicates lose the same features together, which is what separates technical
+    dropout from biology at small n.
+
+    Every feature with at least one missing value belongs to exactly one
+    intersection. Fully detected features carry no intersection information and are
+    excluded.
+
+    Requires upsetplot (``pip install mismap-qc[upset]``).
+
+    Parameters
+    ----------
+    df : DataFrame
+        features (rows) x samples (columns). NaN = missing.
+    by : str or int
+        ``"sample"`` (default) for one set per sample, or a MultiIndex level name
+        or index for one set per group.
+    group_min_frac : float
+        Group mode only. A feature counts as missing in a group when it is missing
+        in at least this fraction of that group's samples. The 0.5 default treats a
+        feature as lost in a group once it is absent from the majority of it.
+    min_size : int
+        Intersections smaller than this are not drawn.
+    max_intersections : int
+        Draw at most this many intersections, largest first. Intersection count
+        grows quickly with sample count, and an uncapped plot is unreadable past a
+        few dozen samples. Truncation is annotated on the figure, and
+        ``return_data=True`` still returns every intersection.
+    feature_type : str
+        "PROT" | "GENE" | "PEPTIDE".
+    title, subtitle : str
+        Title / subtitle. Title is auto-generated when None.
+    figsize : tuple, optional
+        Auto-sized when None.
+    fontsize : int
+        Base font size.
+    save : str, optional
+        Path to save the figure.
+    dpi : int
+        Save resolution.
+    return_data : bool
+        Return ``(Figure, DataFrame)`` instead of just the Figure. Schema:
+        [feature, members, n_features, rank, plotted].
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    try:
+        import upsetplot
+    except ImportError as exc:  # pragma: no cover - exercised via monkeypatch
+        raise ImportError(
+            "missing_upset() requires upsetplot. Install it with "
+            "'pip install mismap-qc[upset]' or 'pip install upsetplot'."
+        ) from exc
+
+    fl = _get_feature_labels(feature_type)
+    frame = _upset_intersections(
+        df,
+        by=by,
+        group_min_frac=group_min_frac,
+        min_size=min_size,
+        max_intersections=max_intersections,
+    )
+    shown = frame[frame["plotted"]] if len(frame) else frame
+
+    n_total = int(frame["rank"].nunique()) if len(frame) else 0
+    n_shown = int(shown["rank"].nunique()) if len(shown) else 0
+
+    if title is None:
+        unit = "samples" if (isinstance(by, str) and by == "sample") else "groups"
+        title = f"Co-missingness across {unit} ({n_shown} intersections)"
+
+    if len(shown) == 0:
+        fig, ax = plt.subplots(figsize=figsize or (7.0, 3.0), facecolor="white")
+        _clean_ax(ax)
+        message = (
+            f"No missing values: every {fl['singular']} is detected in every sample"
+            if n_total == 0
+            else f"No intersection reaches min_size={min_size}"
+        )
+        ax.text(0.5, 0.5, message, ha="center", va="center", fontsize=fontsize)
+        if title:
+            ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+        fig.tight_layout()
+        if save:
+            fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+        if return_data:
+            return fig, frame
+        return fig
+
+    memberships = [tuple(m.split("|")) for m in shown["members"]]
+
+    if figsize is None:
+        n_sets = len({name for m in memberships for name in m})
+        width = max(7.0, min(16.0, 0.30 * n_shown + 4.0))
+        height = max(4.5, min(12.0, 0.28 * n_sets + 3.0))
+        figsize = (width, height)
+
+    fig = plt.figure(figsize=figsize, facecolor="white")
+    # upsetplot 0.9.0 uses chained inplace fillna internally, which emits several
+    # pandas FutureWarnings per call. They are upstream and not actionable by
+    # callers of this function, so they are suppressed here rather than shown.
+    # Scoped to these calls only, so warnings from our own code still surface.
+    with mpl.rc_context({"font.size": fontsize}), _warnings.catch_warnings():
+        _warnings.simplefilter("ignore", FutureWarning)
+        series = upsetplot.from_memberships(memberships)
+        # show_counts is deliberately off: upsetplot 0.9.0 draws those labels in a
+        # way matplotlib 3.10 rejects ("only 0-dimensional arrays can be converted
+        # to Python scalars") and the figure then fails at draw time, not at
+        # construction. Intersection sizes are on the bar axis and in the
+        # return_data table.
+        upsetplot.UpSet(
+            series,
+            subset_size="count",
+            sort_by="cardinality",
+            facecolor="#2d2d2d",
+        ).plot(fig=fig)
+
+    caption = subtitle
+    if n_shown < n_total:
+        truncation = f"showing the {n_shown} largest of {n_total} intersections"
+        caption = f"{subtitle} | {truncation}" if subtitle else truncation
+
+    # Title and caption are stacked above the UpSet axes, which upsetplot lays out
+    # itself. y positions are chosen so the caption clears the title's descenders.
+    if title:
+        fig.suptitle(title, y=0.995, va="top", fontsize=fontsize + 2, fontweight="bold")
+    if caption:
+        fig.text(
+            0.5, 0.955 if title else 0.99, caption, ha="center", va="top",
+            fontsize=fontsize - 1, fontstyle="italic", color="#666666",
+        )
+
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    if return_data:
+        return fig, frame
+    return fig
+
+
 def _data_missing_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """Long-form schema for missing_matrix: columns [feature, sample, missing]."""
     if isinstance(df.columns, pd.MultiIndex):
@@ -1843,12 +2007,33 @@ def _data_comissing_heatmap(df: pd.DataFrame, top_n: int = 50) -> pd.DataFrame:
     ]
     return pd.DataFrame(rows, columns=cols)
 
+def _data_missing_upset(
+    df: pd.DataFrame,
+    *,
+    by="sample",
+    group_min_frac: float = 0.5,
+    min_size: int = 1,
+    max_intersections: int = 50,
+) -> pd.DataFrame:
+    """Schema: columns [feature, members, n_features, rank, plotted]. One row per
+    feature with at least one missing value. Intersections beyond max_intersections
+    are present with plotted=False rather than dropped."""
+    return _upset_intersections(
+        df,
+        by=by,
+        group_min_frac=group_min_frac,
+        min_size=min_size,
+        max_intersections=max_intersections,
+    )
+
+
 _RETURN_DATA_SCHEMAS = {
     "missing_matrix": ["feature", "sample", "missing"],
     "completeness_bars": ["group", "completeness", "n_samples"],
     "detection_waterfall": ["feature", "detection_rate", "rank"],
     "missing_runorder": ["sample", "run_order", "missing_rate", "group"],
     "comissing_heatmap": ["feature_a", "feature_b", "comissingness"],
+    "missing_upset": ["feature", "members", "n_features", "rank", "plotted"],
 }
 
 # Legacy alias for missing_matrix

@@ -25,6 +25,21 @@ jobs:
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} --with pytest python -m pytest tests/ -q
 
+  test-extras:
+    # The matrix above installs no optional dependencies on purpose, which proves
+    # the package works bare but leaves the plotly, anndata and upsetplot code
+    # paths skipped. This job installs every extra so those actually run.
+    name: pytest (all extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run tests with all extras
+        run: uv run --python 3.12 --all-extras --with pytest python -m pytest tests/ -q
+
   lint:
     name: ruff
     runs-on: ubuntu-latest
