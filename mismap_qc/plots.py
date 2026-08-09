@@ -586,12 +586,56 @@ def missing_matrix_html(
     """
     Interactive HTML missing-data matrix using plotly.
 
+    Hover tooltips show the feature name, sample ID, every annotation level, and
+    detection status. Supports the same clustering, sorting, annotation and
+    completeness options as :func:`missing_matrix`.
+
+    Requires the optional ``plotly`` dependency (``pip install mismap-qc[interactive]``).
+
     Parameters
     ----------
+    df : pandas.DataFrame
+        Features (rows) x samples (columns). NaN marks a missing value.
+    title : str
+        Figure title.
+    subtitle : str
+        Secondary line below the title, for dataset metadata.
     feature_type : str
         Type of features: "PROT", "GENE", or "PEPTIDE". Used for hover labels.
+    annotation_levels : list of int, optional
+        Column levels to draw as annotation strips. Defaults to all levels
+        except the innermost.
+    annotation_colors : dict, optional
+        Per-level colour overrides, keyed by level index or level name. Levels
+        left unspecified fall back to the built-in palettes.
+    label_level : int
+        Which column level supplies the x-axis tick labels.
+    sort_features : {"ascending", "descending"}, optional
+        Sort features by completeness. None leaves the input order.
+    cluster_samples : bool
+        Cluster samples by their binary nullity pattern.
+    cluster_method : str
+        scipy linkage method used when ``cluster_samples`` is True.
+    color_present : str
+        Colour for detected cells.
+    color_missing : str
+        Colour for missing cells.
+    invert : bool
+        Swap the present and missing colours.
+    completeness : {"below", "side"}
+        Place the completeness sparkline below (per sample) or to the side
+        (per feature).
+    completeness_threshold : float, optional
+        Draw a reference line at this completeness value, between 0 and 1.
+    width, height : int, optional
+        Plot dimensions in pixels. Calculated from the data when None.
+    save : str, optional
+        Write the HTML to this path in addition to returning it.
 
-    Returns the HTML string. If save is set, also writes to file.
+    Returns
+    -------
+    str
+        The rendered HTML document.
     """
     if invert:
         color_present, color_missing = color_missing, color_present

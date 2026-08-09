@@ -4,12 +4,15 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/mismap-qc.svg)](https://pypi.org/project/mismap-qc/)
 [![License: MIT](https://img.shields.io/pypi/l/mismap-qc.svg)](LICENSE)
 [![Tests](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml/badge.svg)](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml)
+[![Docs](https://github.com/foertsch/mismap-qc/actions/workflows/docs-deploy.yml/badge.svg)](https://foertsch.github.io/mismap-qc/)
 [![Views](https://hits.sh/github.com/foertsch/mismap-qc.svg?label=views)](https://hits.sh/github.com/foertsch/mismap-qc/)
 
 Missing-data validation for proteomics and RNA-Seq experiments. Detects outlier
 samples, classifies dropout mechanism (MNAR vs MAR), tests for batch effects,
 and gates pipelines on configurable QC rules. Every check has a matching plot
 for when you want to see the problem rather than just check it.
+
+**Documentation: [foertsch.github.io/mismap-qc](https://foertsch.github.io/mismap-qc/)**
 
 ## Install
 

@@ -36,10 +36,15 @@ interactive = ["plotly"]
 anndata = ["anndata"]
 upset = ["upsetplot"]
 dev = ["pytest", "ruff", "plotly", "anndata", "upsetplot"]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 
 [project.urls]
 Repository = "https://github.com/foertsch/mismap-qc"
-Documentation = "https://github.com/foertsch/mismap-qc#readme"
+Documentation = "https://foertsch.github.io/mismap-qc/"
 Issues = "https://github.com/foertsch/mismap-qc/issues"
 Changelog = "https://github.com/foertsch/mismap-qc/blob/main/CHANGELOG.md"
 

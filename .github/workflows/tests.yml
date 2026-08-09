@@ -53,3 +53,18 @@ jobs:
         # Pinned: an unpinned `--with ruff` silently changes what the lint job
         # enforces whenever ruff releases. Bump deliberately.
         run: uv run --with ruff==0.16.0 ruff check .
+
+  docs:
+    name: docs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build the documentation
+        # --strict fails on warnings: a broken internal link, or a docstring
+        # griffe cannot parse. That is the point. This job caught a malformed
+        # Returns section in missing_matrix_html the day it was added.
+        run: uv run --all-extras mkdocs build --strict
