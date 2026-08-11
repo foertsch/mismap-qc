@@ -4,6 +4,37 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-08-11
+
+Documentation release. No functional changes to the library.
+
+### Added
+
+- **`Examples` sections for every public function.** Three of thirteen had one.
+  The documentation site renders these docstrings directly, so the gap was visible
+  on every API page.
+- **`tests/test_docstring_examples.py`** executes every `>>>` line in a public
+  docstring against a shared fixture. A documented example that stops working now
+  fails the build, rather than sitting in the rendered docs looking plausible.
+
+### Fixed
+
+- **The tutorial notebook did not run.** Its validation section called `qc(df)` and
+  `assert_qc(df)`, but the notebook builds its matrix as `prot_subset`; `df` was
+  never defined, so executing the notebook end to end died with `NameError`. The
+  section had been committed without being executed.
+- **The notebook cell labelled "Lenient thresholds: passes" did not pass.** It
+  asked for 50% per-sample completeness on a subset selected for high missingness
+  variance, where the worst sample sits at 15%. Lowered to 10%, with a comment
+  explaining why the bar is low. The notebook now executes cleanly against the real
+  CPTAC data: 21 of 21 cells, no errors.
+- **"`return_data=True` on every plot function" was inaccurate** in the README,
+  `CLAUDE.md`, the API reference and the generative AI disclosure. Six of the nine
+  plot functions accept it. `missing_mechanism()` always returns
+  `(Figure, DataFrame)` and needs no flag; `missing_abundance_density()` returns a
+  figure and `missing_matrix_html()` returns an HTML string, so neither has a
+  tabular result to hand back. Corrected in all four places.
+
 ## [0.3.0] - 2026-08-11
 
 Adds the first Wave 2 plot, a documentation site, and the repository files and
