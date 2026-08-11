@@ -1,6 +1,6 @@
 # Use of generative AI
 
-mismap-qc was authored by Arion Förtsch. The scope, the design, the statistical choices and the responsibility for how this package behaves are mine.
+mismap-qc was authored by Arion Förtsch, including the scope, the design, the statistical choices and the responsibility for how this package behaves.
 
 The implementation was written largely by Claude Code (Anthropic), working from my specifications and under my review. The models were Claude Opus 4.6 and Claude Sonnet 4.6 in March and April 2026, and Claude Opus 5 from July 2026, recorded per commit in the `Co-Authored-By` trailers.
 
