@@ -363,6 +363,10 @@ If you use mismap-qc in published work, please cite it. Machine-readable metadat
 
 > Förtsch, A. (2026). *mismap-qc: missing-data validation for proteomics and RNA-Seq* (version 0.2.2). https://github.com/foertsch/mismap-qc
 
+## Use of generative AI
+
+Most of this package's code, tests, and prose was written by an AI coding agent working from my specifications and under my review. The design decisions and the responsibility are mine. The full disclosure, including what was and was not generated, is at [Use of generative AI](https://foertsch.github.io/mismap-qc/generative-ai-use/).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

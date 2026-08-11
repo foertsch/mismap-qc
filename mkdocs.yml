@@ -59,6 +59,7 @@ nav:
       - Plots: api/plots.md
       - Readers and estimators: api/io.md
   - Contributing: contributing.md
+  - Use of generative AI: generative-ai-use.md
 
 markdown_extensions:
   - admonition
