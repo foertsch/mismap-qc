@@ -62,7 +62,7 @@ df = from_anndata(adata, obs_levels=["batch", "condition"])
 report = qc(df, group_level="condition")
 ```
 
-To pair any plot with its underlying numbers, pass `return_data=True`:
+Six of the nine plot functions pair with their underlying numbers through `return_data=True`. `missing_mechanism()` always returns `(Figure, DataFrame)`; `missing_abundance_density()` and `missing_matrix_html()` return a figure and an HTML string respectively.
 
 ```python
 from mismap_qc import detection_waterfall

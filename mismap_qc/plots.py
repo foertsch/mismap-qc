@@ -125,7 +125,14 @@ def missing_matrix(
     Returns
     -------
     matplotlib.figure.Figure
-    """
+
+    Examples
+    --------
+    >>> fig = missing_matrix(df, title="Protein detection")
+    >>> fig = missing_matrix(df, cluster_samples=False, sort_features=None)
+    >>> fig = missing_matrix(df, split_by="Condition", annotation_levels=[0])
+    >>> fig, table = missing_matrix(df, return_data=True)
+"""
     if invert:
         color_present, color_missing = color_missing, color_present
 
@@ -636,7 +643,12 @@ def missing_matrix_html(
     -------
     str
         The rendered HTML document.
-    """
+
+    Examples
+    --------
+    >>> html = missing_matrix_html(df, title="Protein detection")
+    >>> html = missing_matrix_html(df, completeness_threshold=0.5, invert=True)
+"""
     if invert:
         color_present, color_missing = color_missing, color_present
 
@@ -1149,7 +1161,13 @@ def completeness_bars(
     Returns
     -------
     matplotlib.figure.Figure
-    """
+
+    Examples
+    --------
+    >>> fig = completeness_bars(df, "Condition")
+    >>> fig = completeness_bars(df, "Condition", threshold=0.8, orientation="vertical")
+    >>> fig, table = completeness_bars(df, "Condition", return_data=True)
+"""
     has_mi = isinstance(df.columns, pd.MultiIndex)
 
     # Resolve groups
@@ -1587,7 +1605,13 @@ def missing_mechanism(
     classification : DataFrame
         Columns: feature, mechanism, missing_rate, mean_abundance, p_value.
         mechanism is one of {"MNAR", "MAR", "MCAR", "INSUFFICIENT"}.
-    """
+
+    Examples
+    --------
+    >>> fig, table = missing_mechanism(df)
+    >>> fig, table = missing_mechanism(df, alpha=0.01, show_scatter=False)
+    >>> table.query("mechanism == 'MNAR'")
+"""
     if method != "mannwhitneyu":
         raise ValueError(
             f"method must be 'mannwhitneyu' (only option in v0.2.0). Got: {method!r}"
@@ -1734,7 +1758,13 @@ def comissing_heatmap(
     Returns
     -------
     matplotlib.figure.Figure
-    """
+
+    Examples
+    --------
+    >>> fig = comissing_heatmap(df)
+    >>> fig = comissing_heatmap(df, top_n=20, cluster=False)
+    >>> fig, table = comissing_heatmap(df, return_data=True)
+"""
     fl = _get_feature_labels(feature_type)
     co_df = _comissing_matrix(df, top_n=top_n)
 
@@ -1872,7 +1902,14 @@ def missing_upset(
     Returns
     -------
     matplotlib.figure.Figure
-    """
+
+    Examples
+    --------
+    >>> fig = missing_upset(df)
+    >>> fig = missing_upset(df, by="Condition", group_min_frac=0.5)
+    >>> fig, table = missing_upset(df, min_size=2, return_data=True)
+    >>> table.query("~plotted")
+"""
     try:
         import upsetplot
     except ImportError as exc:  # pragma: no cover - exercised via monkeypatch

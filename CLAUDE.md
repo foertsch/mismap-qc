@@ -177,7 +177,7 @@ def test_new_function_returns_figure():
 ### Validation API (new in 0.2.0)
 - [x] `qc()` / `assert_qc()` / `MismapReport`
 - [x] 11 threshold rules with error / warning / info severities
-- [x] `return_data=True` flag on every plot
+- [x] `return_data=True` on the six plots with a tabular result (`missing_matrix`, `completeness_bars`, `detection_waterfall`, `missing_runorder`, `comissing_heatmap`, `missing_upset`). `missing_mechanism` always returns `(Figure, DataFrame)`. `missing_abundance_density` and `missing_matrix_html` have no tabular result.
 - [x] `from_anndata()` interop reader
 - [x] `estimate_lod()` (Scope E.1)
 

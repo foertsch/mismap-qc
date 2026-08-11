@@ -58,7 +58,13 @@ def from_anndata(
     ValueError
         If ``layer``, ``obs_levels``, ``var_index``, or ``missing_value`` is
         invalid.
-    """
+
+    Examples
+    --------
+    >>> df = from_anndata(adata)
+    >>> df = from_anndata(adata, obs_levels=["Batch", "Condition"])
+    >>> df = from_anndata(adata, missing_value=0.0, var_index="gene_symbol")
+"""
     try:
         import anndata as _anndata
     except ImportError as e:
