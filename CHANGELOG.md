@@ -4,70 +4,88 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-08-11
+
+Adds the first Wave 2 plot, a documentation site, and the repository files and
+metadata that were missing for peer review. No breaking changes.
 
 ### Added
-
-- **Documentation site** built with mkdocs-material and mkdocstrings, published
-  to GitHub Pages at <https://foertsch.github.io/mismap-qc/>. The API reference
-  generates from the NumPy-style docstrings, so per-function parameter tables no
-  longer have to be maintained by hand in the README.
-  - Pages: home, quickstart, tutorial, API reference split across validation /
-    plots / readers, and contributing.
-  - A `docs build` job in CI runs `mkdocs build --strict`, so a broken internal
-    link or an unparseable docstring fails the build.
-  - `.github/workflows/docs-deploy.yml` publishes the site from `main`.
-  - New `docs` extra.
-
-### Fixed
-
-- **`missing_matrix_html()` docstring.** Its `Returns` line sat inside the
-  `Parameters` section, so documentation tooling parsed "Returns" as a parameter
-  name. It also documented 1 of its 18 parameters. Now has a proper `Returns`
-  section and complete parameter documentation. Found by the new strict docs
-  build on its first run.
 
 - **`missing_upset()`** ([#4](https://github.com/foertsch/mismap-qc/issues/4)), the
   first Wave 2 plot. UpSet plot of which sample combinations share missing
   features: for each intersection, how many features are missing in exactly that
   combination. Answers whether particular replicates lose the same features
-  together, which bar charts cannot show and Venn diagrams cannot handle past three
-  sets. `by="sample"` for one set per sample, or a MultiIndex level name for one
-  set per group, where `group_min_frac=0.5` decides when a feature counts as lost
-  in a group.
+  together, which bar charts cannot show and Venn diagrams cannot handle past
+  three sets. `by="sample"` for one set per sample, or a MultiIndex level name for
+  one set per group, where `group_min_frac=0.5` decides when a feature counts as
+  lost in a group.
 
   Needs `upsetplot`, a new optional extra: `pip install mismap-qc[upset]`.
 
   The plot caps at the 50 largest intersections by default, because intersection
   count grows quickly with sample count. Truncation is annotated on the figure and
-  `return_data=True` returns every intersection with a `plotted` column, so nothing
-  is silently dropped. Schema: `[feature, members, n_features, rank, plotted]`, one
-  row per feature.
+  `return_data=True` returns every intersection with a `plotted` column, so
+  nothing is silently dropped. Schema: `[feature, members, n_features, rank,
+  plotted]`, one row per feature.
+
+- **Documentation site** built with mkdocs-material and mkdocstrings, published to
+  GitHub Pages at <https://foertsch.github.io/mismap-qc/> ([#5](https://github.com/foertsch/mismap-qc/issues/5)).
+  The API reference generates from the NumPy-style docstrings, so per-function
+  parameter tables no longer have to be maintained by hand in the README. Pages:
+  home, quickstart, tutorial, API reference across validation / plots / readers,
+  contributing, and the generative AI disclosure. New `docs` extra.
 
 - **`CONTRIBUTING.md`** covering the development install, how to run pytest and
   ruff, where code belongs by module, the naming and API conventions, the minimum
   tests a new function needs, the pull request flow, and the release steps.
+
 - **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1) with a named reporting
   contact.
+
 - **`CITATION.cff`** so GitHub renders "Cite this repository", including ORCID
-  `0000-0003-0409-6209`, plus a Citation section, a Contributing section, and a
-  License section in the README.
-- Four guards in `tests/test_package_metadata.py`: `CITATION.cff`'s version field
-  must match `pyproject.toml`, the four repo files the pyOpenSci editor check
-  looks for must exist, and the code of conduct must not still carry the
-  Contributor Covenant's `[INSERT CONTACT METHOD]` placeholder.
+  `0000-0003-0409-6209`, plus Citation, Contributing and License sections in the
+  README.
+
+- **`docs/generative-ai-use.md`**, disclosing how generative AI was used in
+  building this package, as pyOpenSci's generative AI policy requires.
+
+- **A `docs build` CI job** running `mkdocs build --strict`, so a broken internal
+  link or a docstring the documentation tooling cannot parse fails the build.
+
+- **A `pytest (all extras)` CI job.** The version matrix installs no optional
+  dependencies on purpose, which proves the package works bare but left the
+  plotly, anndata and upsetplot paths skipped in CI. The new job installs every
+  extra so those actually run.
+
+- **Four guards in `tests/test_package_metadata.py`**: `CITATION.cff`'s version
+  field must match `pyproject.toml`, the four repository files the pyOpenSci
+  editor check looks for must exist, and the code of conduct must not still carry
+  the Contributor Covenant's `[INSERT CONTACT METHOD]` placeholder.
 
 ### Changed
 
-- CI gains a **`pytest (all extras)`** job. The version matrix installs no optional
-  dependencies on purpose, which proves the package works bare but left the plotly,
-  anndata and upsetplot paths skipped in CI. The new job installs every extra so
-  those actually run.
-- Author name in package metadata is now spelled **Förtsch**, matching the ORCID
-  record and `CITATION.cff`. Published 0.1.0 metadata says "Foertsch".
-- The sdist allowlist now includes `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and
+- **Maintainer contact is now a personal address** (`foertsch.arion@gmail.com`) in
+  package metadata, `CITATION.cff` and the code of conduct. Institutional
+  addresses stop resolving when the role ends, and the package may outlive it.
+  Affiliation and ORCID still record the institutional link.
+- **Author name is now spelled Förtsch**, matching the ORCID record. Published
+  0.1.0 and 0.2.x metadata say "Foertsch".
+- `[project.urls] Documentation` now points at the documentation site rather than
+  the README anchor.
+- The sdist allowlist gains `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and
   `CITATION.cff`. Without them the shipped test suite failed when run from an
   extracted source distribution, which CI does not exercise.
+- The commit trailer convention is written down in `CLAUDE.md` and
+  `CONTRIBUTING.md`: mark commits a tool wrote, leave the trailer off commits a
+  human wrote.
+
+### Fixed
+
+- **`missing_matrix_html()` docstring.** Its `Returns` line sat inside the
+  `Parameters` section, so documentation tooling parsed "Returns" as a parameter
+  name, and it documented 1 of its 18 parameters. Now has a proper `Returns`
+  section and complete parameter documentation. Found by the strict docs build on
+  its first run.
 
 ## [0.2.2] - 2026-07-30
 
