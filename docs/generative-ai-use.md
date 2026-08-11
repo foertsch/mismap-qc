@@ -13,27 +13,3 @@ Correctness is checked by 152 tests on Python 3.10 through 3.13 across Linux and
 Commits written by the agent carry a `Co-Authored-By` trailer for it, a convention written down in `CONTRIBUTING.md`. It is reliable from 2026-07-30 onward and patchy before: four earlier commits lack the trailer despite being agent-assisted, `5cd2f0a`, the v0.2.0 release, most significantly. Read a missing trailer on an early commit as a gap in the record rather than as human authorship. The trailers have not been backfilled, because rewriting fourteen commits would move every release tag and throw away the public development history to make metadata look tidy.
 
 Development ran from 2026-03-11 to 2026-08-11. If you find a bug, please open an issue.
-
-<!-- TODO (Arion): two statements the policy asks for, which are yours to make and
-     not the agent's. Write them in your own words and delete this comment.
-
-     1. What your review actually consisted of. Reading diffs before merge,
-        running the checks locally, using the package on real FGCZ proteomics
-        data. Be specific, do not overstate it. This is the most persuasive
-        line in the document, because it is evidence of engagement rather than
-        a claim about it.
-     2. That all your correspondence during the review process is written by you.
-
-     First person is right for those two, even though the rest of the page is
-     third person. They are personal attestations, so "I reviewed..." reads
-     correctly where "the author reviewed..." would sound evasive.
-
-     Note also: the accountability line you cut ("responsibility for how this
-     package behaves") is something USACE and workflow-canvas both keep in theirs.
-     If you want it back without another possessive, "The author is accountable
-     for its behaviour" does the job. Your call.
-
-     Last thing to check: the severity tiers and the Mann-Whitney choice predate
-     this session, so they came from docs/PLAN_validation_scope.md. If either was
-     the agent's suggestion that you accepted rather than your own call, move it
-     out of the design paragraph. -->
