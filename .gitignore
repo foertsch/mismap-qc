@@ -12,3 +12,6 @@ examples/data/
 
 # Local Claude Code context primer (personal, do not commit)
 CLAUDE.local.md
+
+# mkdocs build output
+site/

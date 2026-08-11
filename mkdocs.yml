@@ -1,0 +1,72 @@
+site_name: mismap-qc
+site_description: Missing-data validation for proteomics and RNA-Seq QC
+site_url: https://foertsch.github.io/mismap-qc/
+repo_url: https://github.com/foertsch/mismap-qc
+repo_name: foertsch/mismap-qc
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: numpy
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_signature_annotations: true
+            separate_signature: true
+            members_order: source
+            heading_level: 3
+            filters: ["!^_"]
+
+# The plan documents live in docs/ for historical reasons and are development
+# notes, not user documentation. The architecture maps are generated artifacts.
+# Keep both out of the published site without moving files and breaking links.
+exclude_docs: |
+  PLAN_*.md
+  architecture.*
+  *.dot
+  *.png
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Tutorial: tutorial.md
+  - API reference:
+      - Validation: api/validation.md
+      - Plots: api/plots.md
+      - Readers and estimators: api/io.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details

@@ -8,6 +8,25 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Added
 
+- **Documentation site** built with mkdocs-material and mkdocstrings, published
+  to GitHub Pages at <https://foertsch.github.io/mismap-qc/>. The API reference
+  generates from the NumPy-style docstrings, so per-function parameter tables no
+  longer have to be maintained by hand in the README.
+  - Pages: home, quickstart, tutorial, API reference split across validation /
+    plots / readers, and contributing.
+  - A `docs build` job in CI runs `mkdocs build --strict`, so a broken internal
+    link or an unparseable docstring fails the build.
+  - `.github/workflows/docs-deploy.yml` publishes the site from `main`.
+  - New `docs` extra.
+
+### Fixed
+
+- **`missing_matrix_html()` docstring.** Its `Returns` line sat inside the
+  `Parameters` section, so documentation tooling parsed "Returns" as a parameter
+  name. It also documented 1 of its 18 parameters. Now has a proper `Returns`
+  section and complete parameter documentation. Found by the new strict docs
+  build on its first run.
+
 - **`missing_upset()`** ([#4](https://github.com/foertsch/mismap-qc/issues/4)), the
   first Wave 2 plot. UpSet plot of which sample combinations share missing
   features: for each intersection, how many features are missing in exactly that
