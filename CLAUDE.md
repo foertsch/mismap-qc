@@ -213,6 +213,22 @@ See `docs/PLAN_new_plots.md` and `docs/PLAN_validation_scope.md` for specs.
 
 ---
 
+## Commit conventions
+
+Every commit whose content was written by an AI agent carries:
+
+```
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+```
+
+Rules:
+
+- **Add it when the agent wrote the change.** That is the normal case here.
+- **Do not add it to a commit a human wrote unaided.** The trailer is a record, not decoration, and a blanket application makes it meaningless.
+- **Do not rewrite history to backfill it.** Four commits before 2026-07-30 lack the trailer despite being agent-assisted, `5cd2f0a` (the v0.2.0 release) most significantly. That gap is documented in `docs/generative-ai-use.md`. Rewriting 14 commits would move all three release tags and destroy the public development record, which is worth more than uniform metadata.
+
+The disclosure page is the authoritative statement about AI involvement. The trailers are a per-commit convenience that is only reliable from 2026-07-30 onward.
+
 ## Do's and Don'ts
 
 ### Do

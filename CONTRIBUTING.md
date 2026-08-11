@@ -83,6 +83,18 @@ Close figures with `plt.close("all")` at the end of each test.
 
 Pull requests are squash-merged.
 
+## If you used an AI coding tool
+
+Say so, and mark it in the commit. This project uses the standard trailer:
+
+```
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+```
+
+Substitute whichever tool you used. Add it to commits the tool wrote, and leave it off commits you wrote yourself.
+
+No judgement attached to using one. Most of this package was written that way, and the project-level disclosure is at [Use of generative AI](https://foertsch.github.io/mismap-qc/generative-ai-use/). What matters is that the record is accurate, so please do not apply the trailer by default to everything, and do not omit it on a change a tool actually wrote.
+
 ## Releases
 
 Maintainer only:

@@ -8,7 +8,9 @@ The design is mine. That includes framing the package as validation rather than 
 
 Correctness is checked by 152 tests on Python 3.10 through 3.13 across Linux and macOS, a ruff lint job, and a strict documentation build that fails on an unparseable docstring.
 
-Two caveats worth stating plainly. Eleven of the fifteen commits on `main` carry a `Co-Authored-By` trailer for the agent, and the four without one are not human-written; the convention was applied inconsistently, and `5cd2f0a`, the v0.2.0 release, is among the most heavily agent-assisted changes in the project. And code written this way can carry subtle errors that review does not catch. If you find one, please open an issue.
+Commits written by the agent carry a `Co-Authored-By` trailer for it. That convention is reliable from 2026-07-30 onward and patchy before: four earlier commits lack the trailer despite being agent-assisted, `5cd2f0a`, the v0.2.0 release, most significantly. Read a missing trailer on an early commit as a gap in the record rather than as human authorship. The convention is written down in `CONTRIBUTING.md` now, and I have not backfilled it, because rewriting fourteen commits would move every release tag and throw away the public development history to make metadata look tidy.
+
+Code written this way can carry subtle errors that review does not catch. If you find one, please open an issue.
 
 Development ran from 2026-03-11 to 2026-08-11.
 
