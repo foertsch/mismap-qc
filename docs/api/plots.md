@@ -1,6 +1,8 @@
 # Plots
 
-Every function here accepts `return_data=True` and then returns `(Figure, DataFrame)` instead of a bare figure. Schemas are registered in `_RETURN_DATA_SCHEMAS` and pinned by a regression test, so they are part of the public contract.
+Six of these functions accept `return_data=True` and then return `(Figure, DataFrame)` instead of a bare figure. Schemas are registered in `_RETURN_DATA_SCHEMAS` and pinned by a regression test, so they are part of the public contract.
+
+`missing_mechanism()` always returns `(Figure, DataFrame)`, so it needs no flag. `missing_abundance_density()` returns a figure, and `missing_matrix_html()` returns an HTML string; neither has a tabular result to hand back.
 
 | Function | `return_data` columns |
 |---|---|

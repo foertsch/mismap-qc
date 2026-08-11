@@ -40,7 +40,12 @@ def estimate_lod(
     ValueError
         If ``method`` is not one of {"min", "quantile"} or ``quantile`` is
         outside [0, 1].
-    """
+
+    Examples
+    --------
+    >>> lod = estimate_lod(df)
+    >>> lod = estimate_lod(df, method="quantile", quantile=0.1)
+"""
     if method not in ("min", "quantile"):
         raise ValueError(
             f"method must be 'min' or 'quantile'; got {method!r}"

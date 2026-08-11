@@ -511,7 +511,15 @@ def qc(
     Returns
     -------
     MismapReport
-    """
+
+    Examples
+    --------
+    >>> report = qc(df)
+    >>> report.passed
+    >>> report = qc(df, group_level="Condition")
+    >>> report.sample_outliers.query("flagged")
+    >>> report = qc(df, thresholds={"min_sample_completeness": 0.6})
+"""
     n_features, n_samples = df.shape
     _, groups = _resolve_group_labels(df, group_level)
 
@@ -603,7 +611,12 @@ def assert_qc(
 
     Warnings still emit via the warnings module but do not raise. Returns the
     populated MismapReport on success so the caller can keep using it.
-    """
+
+    Examples
+    --------
+    >>> assert_qc(df, thresholds={"min_sample_completeness": 0.1})
+    >>> assert_qc(df, thresholds={"max_mnar_fraction": 0.9}, group_level="Condition")
+"""
     report = qc(
         df,
         thresholds=thresholds,
