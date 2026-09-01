@@ -8,7 +8,7 @@ Concretely, those decisions include framing this as a validation package with pl
 
 The tool was used agentically rather than as autocomplete. It reads the repository, proposes changes, runs `pytest` and `ruff` itself, and iterates until they pass. Its output covers the library code, the test suite, the docstrings, the README and the pages of this site. The code of conduct is the Contributor Covenant, adopted verbatim from upstream, not generated. Each working session had a scope set in advance, and what landed was decided at review.
 
-Correctness is checked by 152 tests on Python 3.10 through 3.13 across Linux and macOS, a ruff lint job, and a strict documentation build that fails on an unparseable docstring.
+Correctness is checked by the test suite on Python 3.10 through 3.13 across Linux and macOS, a ruff lint job, and a strict documentation build that fails on an unparseable docstring. Every example in the public docstrings is executed as part of that suite.
 
 Commits written by the agent carry a `Co-Authored-By` trailer for it, a convention written down in `CONTRIBUTING.md`. It is reliable from 2026-07-30 onward and patchy before: four earlier commits lack the trailer despite being agent-assisted, `5cd2f0a`, the v0.2.0 release, most significantly. Read a missing trailer on an early commit as a gap in the record rather than as human authorship. The trailers have not been backfilled, because rewriting fourteen commits would move every release tag and throw away the public development history to make metadata look tidy.
 

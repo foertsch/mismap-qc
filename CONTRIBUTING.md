@@ -34,7 +34,7 @@ ruff check .
 
 Ruff is pinned to 0.16.0 in the workflow, and the enabled rules are declared explicitly in `pyproject.toml` under `[tool.ruff.lint]`. This is deliberate. Ruff's default rule set widened in 0.16 and turned a green build into 45 errors without a line of code changing. If you want to widen the selection, do it as its own pull request with the resulting fixes, not as a side effect of another change.
 
-Expect around 130 passing tests with the `dev` extra installed, fewer in a bare environment where the optional-dependency tests skip. Tests named `*_realdata.py` need CPTAC data that is not in the repo and skip without it.
+Expect fewer passing tests in a bare environment than with the `dev` extra installed, because the optional-dependency tests skip. Tests named `*_realdata.py` need CPTAC data that is not in the repo and skip without it.
 
 ## Where code goes
 
@@ -58,7 +58,7 @@ Read `CLAUDE.md` for the full set. The ones that matter most:
 - `df` is always the first parameter, features as rows and samples as columns, `NaN` meaning missing.
 - Everything after `df` is keyword-only.
 - Include a `feature_type` parameter on anything that labels features, and get label text from `_get_feature_labels()`. Do not hardcode "gene" or "protein".
-- Plot functions support `return_data=True`, returning `(Figure, DataFrame)` with the schema registered in `_RETURN_DATA_SCHEMAS` and covered by `tests/test_return_data_schemas.py`.
+- Plot functions whose result is tabular support `return_data=True`, returning `(Figure, DataFrame)` with the schema registered in `_RETURN_DATA_SCHEMAS` and covered by `tests/test_return_data_schemas.py`. `missing_mechanism()` always returns the pair; `missing_abundance_density()` and `missing_matrix_html()` have no tabular result.
 - Do not break the public API without a deprecation warning first.
 
 ## Tests
@@ -99,10 +99,10 @@ No judgement attached to using one. Most of this package was written that way, a
 
 Maintainer only:
 
-1. Bump the version in `pyproject.toml` and `mismap_qc/__init__.py`. They are checked against each other by `tests/test_package_metadata.py`, so both have to move.
-2. Update `CHANGELOG.md` and the `version` field in `CITATION.cff`.
+1. Bump the version in `pyproject.toml`, `mismap_qc/__init__.py` and `CITATION.cff`. `tests/test_package_metadata.py` checks all three against each other, so a partial bump fails the suite.
+2. Update `CHANGELOG.md` and the version in the README citation line.
 3. Merge, then tag `vX.Y.Z` and create the GitHub release.
-4. `uv build`, then `uv publish`.
+4. `uv build`, then `uv run --with twine twine upload dist/mismap_qc-<version>*` from the repository root. `uv publish` does not read `~/.pypirc`, so twine is the path that works with a credential stored there.
 
 The sdist contents are an explicit allowlist in `[tool.hatch.build.targets.sdist]`. Anything new that has to ship in the source distribution must be added there, otherwise it is silently left out.
 
