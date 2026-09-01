@@ -31,4 +31,4 @@ Correctness is checked by the test suite on Python 3.10 through 3.13 across Linu
 
 Commits written by the agent carry a `Co-Authored-By` trailer, a convention written down in `CONTRIBUTING.md`. It is reliable from 2026-07-30 onward and patchy before: four earlier commits lack the trailer despite being agent-assisted, `5cd2f0a`, the v0.2.0 release, most significantly. A missing trailer on an early commit is a gap in the record, not evidence of human authorship. The trailers have not been backfilled, because rewriting fourteen commits would move every release tag and discard the public development history to make metadata look tidy.
 
-Development ran from 2026-03-11 to 2026-08-11. If you find a bug, please open an issue.
+Development began on 2026-03-11 and is ongoing; the commit history is the authoritative record. If you find a bug, please open an issue.
