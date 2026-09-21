@@ -4,6 +4,27 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Static type checking with mypy**, run in CI (`typecheck` job) and configured
+  under `[tool.mypy]`. mypy is pinned to 2.3.1 in the workflow, matching the ruff
+  approach, so a checker release cannot change what passes without a deliberate
+  bump.
+
+### Fixed
+
+- **Return-type annotations on the six `return_data` plot functions.** They were
+  annotated `-> plt.Figure` but return `(Figure, DataFrame)` when
+  `return_data=True`. The signatures now read
+  `-> plt.Figure | tuple[plt.Figure, pd.DataFrame]`, so a type checker or IDE sees
+  the real contract. Found by the new mypy job.
+- Assorted type fixes surfaced by the same job: a missing variable annotation in
+  `stats.py`, a widened `GridSpec` annotation, string tick labels where matplotlib
+  expects them, `plt.get_cmap("viridis_r")` in place of the attribute access its
+  stubs lack, and consistent float figure sizes.
+
 ## [0.3.1] - 2026-08-11
 
 Documentation release. No functional changes to the library.

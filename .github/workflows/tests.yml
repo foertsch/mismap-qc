@@ -68,3 +68,18 @@ jobs:
         # griffe cannot parse. That is the point. This job caught a malformed
         # Returns section in missing_matrix_html the day it was added.
         run: uv run --all-extras mkdocs build --strict
+
+  typecheck:
+    name: mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run mypy
+        # --all-extras so the optional-dependency modules (io, plots) type-check
+        # against the real packages. Pinned like ruff: a mypy release can change
+        # what passes without a code change.
+        run: uv run --all-extras --with mypy==2.3.1 mypy
