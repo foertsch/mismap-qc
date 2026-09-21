@@ -52,7 +52,7 @@ def missing_matrix(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """
     Pretty missing-data matrix with multi-level sample annotations.
 
@@ -244,7 +244,7 @@ def missing_matrix(
             1, 2, width_ratios=[15, 1], wspace=0.08,
             left=gs_left, right=gs_right, top=0.92, bottom=0.06,
         )
-        gs = gridspec.GridSpecFromSubplotSpec(
+        gs: gridspec.GridSpecBase = gridspec.GridSpecFromSubplotSpec(
             len(parts), 1,
             height_ratios=[p[1] for p in parts],
             hspace=0.02, subplot_spec=outer[0],
@@ -340,7 +340,7 @@ def missing_matrix(
         ax_mat.set_yticklabels(df.index, fontsize=fs_rows)
     else:
         ax_mat.set_yticks([0, n_genes - 1])
-        ax_mat.set_yticklabels([1, n_genes], fontsize=fs_rows)
+        ax_mat.set_yticklabels(["1", str(n_genes)], fontsize=fs_rows)
 
     ax_mat.tick_params(axis="both", length=0)
     for sp in ax_mat.spines.values():
@@ -405,7 +405,7 @@ def missing_matrix(
     }
     loc_x, loc_valign = _LOC_MAP.get(legend_loc, _LOC_MAP["upper right"])
 
-    renderer = fig.canvas.get_renderer()
+    renderer = fig.canvas.get_renderer()  # type: ignore[attr-defined]  # backend-specific, valid at runtime
     drawn_legs = []
     for lname, patches in legend_handles:
         leg = fig.legend(
@@ -417,7 +417,7 @@ def missing_matrix(
             frameon=True, fancybox=True, edgecolor="#ccc",
             borderpad=0.4, labelspacing=0.3, handletextpad=0.4,
         )
-        leg._legend_box.align = "left"
+        leg._legend_box.align = "left"  # type: ignore[attr-defined]  # private mpl attr, no stub
         fig.add_artist(leg)
         drawn_legs.append(leg)
 
@@ -990,7 +990,7 @@ def missing_abundance_density(
     # Palette
     if palette is None:
         # Use a sequential colormap for missingness levels
-        cmap = plt.cm.viridis_r
+        cmap = plt.get_cmap("viridis_r")
         palette = [mpl.colors.to_hex(cmap(i / max(len(unique_na) - 1, 1)))
                    for i in range(len(unique_na))]
 
@@ -1123,7 +1123,7 @@ def completeness_bars(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """
     Horizontal (or vertical) bar chart of per-group detection completeness.
 
@@ -1204,9 +1204,9 @@ def completeness_bars(
     # Figure
     n_groups = len(groups_sorted)
     if orientation == "horizontal":
-        figsize = (7, max(3, n_groups * 0.5 + 1))
+        figsize: tuple[float, float] = (7.0, max(3.0, n_groups * 0.5 + 1))
     else:
-        figsize = (max(4, n_groups * 0.7 + 1), 5)
+        figsize = (max(4.0, n_groups * 0.7 + 1), 5.0)
 
     fig, ax = plt.subplots(figsize=figsize, facecolor="white")
 
@@ -1272,7 +1272,7 @@ def detection_waterfall(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """
     Waterfall plot showing features ranked by detection rate.
 
@@ -1421,7 +1421,7 @@ def missing_runorder(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """
     Plot per-sample missingness rate against run order.
 
@@ -1723,7 +1723,7 @@ def comissing_heatmap(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """Heatmap of pairwise co-missingness for the top_n most-missing features.
 
     Cell (i, j) = fraction of samples where features i and j are simultaneously
@@ -1850,7 +1850,7 @@ def missing_upset(
     save: str | None = None,
     dpi: int = 150,
     return_data: bool = False,
-) -> plt.Figure:
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
     """UpSet plot of which sample combinations share missing features.
 
     For each intersection of samples (or groups), shows how many features are

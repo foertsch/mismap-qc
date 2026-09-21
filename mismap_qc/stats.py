@@ -263,7 +263,7 @@ def _upset_intersections(
             frac = nulls.loc[:, in_group].mean(axis=1).values
             member_masks.append((str(g), frac >= group_min_frac))
 
-    memberships = [[] for _ in range(len(df))]
+    memberships: list[list[str]] = [[] for _ in range(len(df))]
     for name, mask in member_masks:
         for i in np.nonzero(np.asarray(mask))[0]:
             memberships[i].append(name)
