@@ -163,9 +163,13 @@ class MismapReport:
 
     # --- string repr --------------------------------------------------------
     def __repr__(self) -> str:
-        n_out = 0
-        if self.sample_outliers is not None and "flagged" in self.sample_outliers.columns:
-            n_out = int(self.sample_outliers["flagged"].sum())
+        out_str = "outliers not run"
+        so = self.sample_outliers
+        if so is not None and "flagged" in so.columns:
+            if "evaluable" in so.columns and not so["evaluable"].any():
+                out_str = "outliers not evaluable"
+            else:
+                out_str = f"{int(so['flagged'].sum())} outliers"
         n_mnar = 0
         mnar_str = "?"
         if self.feature_mechanism is not None and "mechanism" in self.feature_mechanism.columns:
@@ -175,7 +179,7 @@ class MismapReport:
             mnar_str = "mechanism not run"
         return (
             f"MismapReport(n={self.n_features}x{self.n_samples}, "
-            f"{n_out} outliers, {mnar_str}, passed={self.passed})"
+            f"{out_str}, {mnar_str}, passed={self.passed})"
         )
 
     def __str__(self) -> str:
@@ -195,8 +199,18 @@ class MismapReport:
             lines.append(f"    range:  {comp.min():.3f} - {comp.max():.3f}")
 
         if self.sample_outliers is not None and "flagged" in self.sample_outliers.columns:
-            flagged = self.sample_outliers[self.sample_outliers["flagged"]]
-            lines.append(f"    outliers flagged: {len(flagged)}")
+            so = self.sample_outliers
+            flagged = so[so["flagged"]]
+            n_scored = int(so["evaluable"].sum()) if "evaluable" in so.columns else len(so)
+            if n_scored == 0:
+                lines.append("    outliers: not evaluable (groups under 3 samples)")
+            elif n_scored < len(so):
+                lines.append(
+                    f"    outliers flagged: {len(flagged)} "
+                    f"({n_scored} of {len(so)} samples evaluable)"
+                )
+            else:
+                lines.append(f"    outliers flagged: {len(flagged)}")
             if len(flagged):
                 names = list(flagged["sample"].astype(str).head(5))
                 suffix = ", ..." if len(flagged) > 5 else ""
@@ -370,10 +384,25 @@ def _rule_max_feature_missing_rate(report, threshold, severity):
         "max_feature_missing_rate", severity, passed, threshold, worst, detail
     )
 
-def _rule_max_sample_outliers(report, threshold, severity):
-    if report.sample_outliers is None or "flagged" not in report.sample_outliers.columns:
+def _evaluable_outliers(report):
+    """Outlier rows that could be scored, or skip the rule if there are none.
+
+    A group too small to estimate spread is not evaluable. Reporting it as
+    "no outliers" would tell a pipeline the samples were checked when they were
+    not, so the rule is skipped instead.
+    """
+    so = report.sample_outliers
+    if so is None or "z_score" not in so.columns:
         raise _SkipRule
-    flagged = report.sample_outliers[report.sample_outliers["flagged"]]
+    scored = so[so["evaluable"]] if "evaluable" in so.columns else so
+    if scored.empty:
+        raise _SkipRule
+    return scored
+
+
+def _rule_max_sample_outliers(report, threshold, severity):
+    scored = _evaluable_outliers(report)
+    flagged = scored[scored["flagged"]]
     n = int(len(flagged))
     passed = n <= threshold
     detail = ""
@@ -385,17 +414,18 @@ def _rule_max_sample_outliers(report, threshold, severity):
         "max_sample_outliers", severity, passed, threshold, float(n), detail
     )
 
+
 def _rule_max_sample_outlier_zscore(report, threshold, severity):
-    if report.sample_outliers is None or "z_score" not in report.sample_outliers.columns:
-        raise _SkipRule
-    z = report.sample_outliers["z_score"]
-    max_z = float(z.abs().max())
+    # One-sided, like the flagging: only missingness above a sample's peers
+    # counts. A sample that lost less than its peers is not a quality problem.
+    scored = _evaluable_outliers(report)
+    max_z = float(scored["z_score"].max())
     passed = max_z <= threshold
     detail = ""
     if not passed:
-        worst = report.sample_outliers.iloc[
-            z.abs().sort_values(ascending=False).index
-        ].head(3)
+        worst = scored[scored["z_score"] > threshold].sort_values(
+            "z_score", ascending=False
+        ).head(3)
         detail = "highest: " + ", ".join(
             f"{r['sample']} (z={r['z_score']:.2f})" for _, r in worst.iterrows()
         )
@@ -482,6 +512,8 @@ def qc(
     checks: tuple[str, ...] = ("completeness", "outliers", "mechanism", "codropouts"),
     thresholds: dict | None = None,
     severity_overrides: dict | None = None,
+    outlier_z_threshold: float = 3.5,
+    outlier_min_delta: float = 0.10,
     feature_type: str = "PROT",
     verbose: bool = False,
 ) -> MismapReport:
@@ -503,6 +535,13 @@ def qc(
         Rule name -> threshold value. Triggers rule evaluation.
     severity_overrides : dict, optional
         Rule name -> "error" | "warning" | "info". Overrides defaults.
+    outlier_z_threshold : float
+        Robust z-score a sample's missing rate must exceed, against its group, to
+        be flagged as an outlier. Used together with ``outlier_min_delta``.
+    outlier_min_delta : float
+        How far above its group's median missing rate a sample must also be to be
+        flagged, as a fraction (0.10 means 10 percentage points). Stops a sample
+        that is only trivially worse being flagged in a group that agrees closely.
     feature_type : str
         "PROT" | "GENE" | "PEPTIDE". Used by downstream rendering.
     verbose : bool
@@ -553,7 +592,13 @@ def qc(
             print("  outliers...")
         if sample_missing_rate is None:
             sample_missing_rate = df.isna().mean(axis=0)
-        sample_outliers = _compute_sample_outliers(df, sample_missing_rate, groups)
+        sample_outliers = _compute_sample_outliers(
+            df,
+            sample_missing_rate,
+            groups,
+            z_threshold=outlier_z_threshold,
+            min_delta=outlier_min_delta,
+        )
 
     if "mechanism" in checks:
         if verbose:

@@ -17,6 +17,7 @@ rule computes.
 """
 from __future__ import annotations
 
+import math
 import warnings
 
 import numpy as np
@@ -83,11 +84,13 @@ def detected_data() -> pd.DataFrame:
 def outlier_data(n: int = 9) -> pd.DataFrame:
     """n samples. The last is missing 2 of 4 values, the rest are complete.
 
-    For one value among n-1 identical ones, the sample z-score (ddof=1) is
-    exactly (n - 1) / sqrt(n), whatever the value itself. That is also the
-    largest |z| any sample can reach with n samples.
+    Eight of nine missing rates are identical, so the median absolute deviation
+    is zero and the robust z-score falls back to the mean absolute deviation.
+    For one value among n - 1 identical ones that gives z = n / sqrt(pi / 2),
+    whatever the value itself: 9 / 1.2533 = 7.181 for n = 9.
 
-    n = 9: z = 8 / 3 = 2.667, above the 2.5 cutoff, so the last sample is flagged.
+    The last sample is 0.5 above the median of 0, well past the 0.10 gap, and its
+    z-score is past 3.5, so it is flagged.
     """
     df = pd.DataFrame(np.ones((4, n)), columns=[f"s{j}" for j in range(n)])
     df.iloc[:2, n - 1] = nan
@@ -199,7 +202,7 @@ RULES = [
     (detected_report,     "min_features_detected",               2,     1,    3),
     (completeness_report, "max_feature_missing_rate",            0.25,  0.30, 0.20),
     (outlier_report,      "max_sample_outliers",                 1,     2,    0),
-    (outlier_report,      "max_sample_outlier_zscore",           8 / 3, 3.0,  2.0),
+    (outlier_report,      "max_sample_outlier_zscore",  9 / math.sqrt(math.pi / 2), 8.0,  5.0),
     (mechanism_report,    "max_mnar_fraction",                   0.50,  0.60, 0.40),
     (mechanism_report,    "max_unclassified_fraction",           0.60,  0.70, 0.50),
     (completeness_report, "min_group_completeness",              0.75,  0.70, 0.80),
@@ -244,9 +247,7 @@ OFFENDERS = [
     (completeness_report, "min_sample_completeness_per_group",   0.60, "B",   "A"),
     (completeness_report, "max_feature_missing_rate",            0.20, "f1",  "f0"),
     (outlier_report,      "max_sample_outliers",                 0,    "s8",  "s0"),
-    # Lists the three highest |z| samples whether or not they cross the
-    # threshold, so only check the real outlier is named, not that others are absent.
-    (outlier_report,      "max_sample_outlier_zscore",           2.0,  "s8",  None),
+    (outlier_report,      "max_sample_outlier_zscore",           2.0,  "s8",  "s0"),
     (completeness_report, "min_group_completeness",              0.80, "B",   "A"),
 ]
 
@@ -280,6 +281,10 @@ SKIPS = [
                  "max_sample_outliers", id="outliers-not-run"),
     pytest.param(lambda: qc(completeness_data(), checks=("completeness",)),
                  "max_sample_outlier_zscore", id="zscore-without-outliers"),
+    pytest.param(completeness_report,
+                 "max_sample_outliers", id="outliers-with-groups-too-small"),
+    pytest.param(completeness_report,
+                 "max_sample_outlier_zscore", id="zscore-with-groups-too-small"),
     pytest.param(completeness_report,
                  "max_mnar_fraction", id="mnar-with-nothing-testable"),
     pytest.param(lambda: qc(completeness_data(), checks=("completeness",)),
@@ -324,13 +329,66 @@ def test_mnar_is_undetectable_with_three_samples_on_each_side():
     assert row["mechanism"] == "MAR"
 
 
-@pytest.mark.parametrize("n, flagged", [(8, 0), (9, 1)], ids=["8-samples", "9-samples"])
-def test_outlier_flagging_needs_at_least_nine_samples(n, flagged):
-    """With n samples no |z| can exceed (n - 1) / sqrt(n).
+def _rates_frame(rates, n_features=200):
+    """One column per missing rate, over n_features rows."""
+    df = pd.DataFrame(np.ones((n_features, len(rates))),
+                      columns=[f"s{j}" for j in range(len(rates))])
+    for j, rate in enumerate(rates):
+        df.iloc[: int(round(n_features * rate)), j] = nan
+    return df
 
-    That bound stays below the 2.5 cutoff until n = 9: 2.47 at n = 8, 2.67 at
-    n = 9. So with eight or fewer samples, however extreme one of them is,
-    nothing is flagged.
+
+def test_failed_sample_is_flagged_in_a_small_group():
+    """Five replicates, one missing 90% of features. The classic z-score could
+    not flag this: with five samples its ceiling is (5 - 1) / sqrt(5) = 1.79."""
+    so = qc(_rates_frame([0.04, 0.05, 0.06, 0.05, 0.90])).sample_outliers
+    assert so.loc[so["flagged"], "sample"].tolist() == ["s4"]
+
+
+def test_robust_z_is_measured_against_the_median_absolute_deviation():
+    """Six samples missing 1, 1, 1, 2, 2 and 8 of 8 features.
+
+    median of 1/8, 1/8, 1/8, 2/8, 2/8, 8/8 = (0.125 + 0.25) / 2 = 0.1875
+    absolute deviations 0.0625 (five times) and 0.8125, so MAD = 0.0625
+    last sample: 0.8125 / 0.0625 = 13 MADs out, z = 0.6745 * 13 = 8.7685
     """
-    report = qc(outlier_data(n))
-    assert int(report.sample_outliers["flagged"].sum()) == flagged
+    df = pd.DataFrame(np.ones((8, 6)), columns=[f"s{j}" for j in range(6)])
+    for j, k in enumerate([1, 1, 1, 2, 2, 8]):
+        df.iloc[:k, j] = nan
+    so = qc(df).sample_outliers
+    assert so["z_score"].max() == pytest.approx(0.6745 * 13)
+    assert so.loc[so["flagged"], "sample"].tolist() == ["s5"]
+
+
+def test_trivially_worse_sample_is_not_flagged():
+    """In a group that agrees closely, a sample at 11% missing against peers at
+    5% is many MADs out, but only 6 points worse. The 0.10 gap stops it."""
+    so = qc(_rates_frame([0.049, 0.050, 0.051, 0.050, 0.110], n_features=1000)).sample_outliers
+    assert so["z_score"].max() > 3.5
+    assert not so["flagged"].any()
+
+
+def test_sample_better_than_its_peers_is_not_flagged():
+    """Unusually low missingness is not a quality problem, so flagging is
+    one-sided, and so is the z-score rule."""
+    report = qc(_rates_frame([0.50, 0.50, 0.52, 0.48, 0.00]))
+    assert not report.sample_outliers["flagged"].any()
+    assert _result(report, "max_sample_outlier_zscore", 3.5).passed is True
+
+
+def test_groups_too_small_to_score_say_so():
+    """Groups of two cannot estimate spread. The report must say so rather than
+    claim zero outliers, which would read as a clean result."""
+    report = completeness_report()
+    assert not report.sample_outliers["evaluable"].any()
+    assert report.sample_outliers["z_score"].isna().all()
+    assert "outliers not evaluable" in repr(report)
+    assert "not evaluable" in report.summary()
+
+
+def test_outlier_cutoffs_are_configurable():
+    """A stricter z-score cutoff can switch a flag off, and a larger gap can too."""
+    df = _rates_frame([0.04, 0.05, 0.06, 0.05, 0.90])
+    assert qc(df).sample_outliers["flagged"].sum() == 1
+    assert qc(df, outlier_z_threshold=100).sample_outliers["flagged"].sum() == 0
+    assert qc(df, outlier_min_delta=0.95).sample_outliers["flagged"].sum() == 0
