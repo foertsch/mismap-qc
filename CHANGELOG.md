@@ -23,6 +23,9 @@ All notable changes to mismap-qc. Format roughly follows
   ship a broken test suite, which happened once in 0.2.x and was caught by hand.
   Verified by dropping `CITATION.cff` from the allowlist: the job fails.
 
+- **Python 3.14** in the CI test matrix and the trove classifiers. The suite passes
+  on 3.14 both bare and with every optional extra installed.
+
 ### Changed
 
 - **Sample outlier detection now uses a robust z-score. This changes results.**
@@ -107,6 +110,13 @@ All notable changes to mismap-qc. Format roughly follows
   `stats.py`, a widened `GridSpec` annotation, string tick labels where matplotlib
   expects them, `plt.get_cmap("viridis_r")` in place of the attribute access its
   stubs lack, and consistent float figure sizes.
+- **`CONTRIBUTING.md` omitted mypy.** The mypy CI job was added without updating
+  the "checks that must pass" section, which still said two checks (pytest and
+  ruff). A contributor following it would hit a CI failure it never mentioned.
+  The `dev` extra description was also stale.
+- The contributing guide and the generative AI disclosure no longer hardcode the
+  supported Python range, which went stale when 3.14 was added. Both now point at
+  the source of truth instead.
 
 ## [0.3.1] - 2026-08-11
 
