@@ -13,6 +13,10 @@ All notable changes to mismap-qc. Format roughly follows
   approach, so a checker release cannot change what passes without a deliberate
   bump.
 
+- **Test coverage** measured in CI with `pytest-cov` and reported to Codecov,
+  with a badge in the README. Measured in the all-extras job, the only one that
+  reaches the optional-dependency code paths.
+
 ### Changed
 
 - **Sample outlier detection now uses a robust z-score. This changes results.**

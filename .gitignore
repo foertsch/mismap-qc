@@ -15,3 +15,8 @@ CLAUDE.local.md
 
 # mkdocs build output
 site/
+
+# coverage output
+.coverage
+coverage.xml
+htmlcov/
