@@ -48,6 +48,30 @@ All notable changes to mismap-qc. Format roughly follows
 - **New `qc()` options** `outlier_z_threshold` (default 3.5) and
   `outlier_min_delta` (default 0.10) to tune the two conditions.
 
+- **Missingness mechanism: features the test cannot decide are now
+  INSUFFICIENT, not MAR. This changes results.** With every detected sample
+  outranking every missing one, the one-sided Mann-Whitney p-value is
+  1 / C(n, k) for n samples of which k are missing. For three detected against
+  three missing that is 1/20 = 0.05, which fails `p < 0.05`, so even a perfectly
+  separated protein was labelled MAR, a conclusion the data cannot support.
+  Such features, and any others whose best achievable p-value cannot reach
+  `alpha`, are now INSUFFICIENT with a NaN p-value.
+
+  This also closes a false positive. With a tied sample mean, scipy drops the
+  exact test for a normal approximation, which reported p = 0.038 for three
+  against three and called the feature MNAR. The same check now rules it
+  INSUFFICIENT.
+
+  At the default `alpha=0.05` only the three-against-three case is affected. A
+  stricter `alpha` in `missing_mechanism()` marks more small designs
+  INSUFFICIENT, because they cannot reach it either. Expect
+  `max_unclassified_fraction` to rise and the denominator of
+  `max_mnar_fraction` to fall on small datasets.
+
+- The `missing_mechanism()` docstring listed "MCAR" as a possible result. The
+  classifier has never produced it: "MAR" means no evidence of
+  abundance-dependent dropout and covers both. Corrected.
+
 ### Fixed
 
 - **Return-type annotations on the six `return_data` plot functions.** They were

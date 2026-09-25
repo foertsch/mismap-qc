@@ -5,6 +5,8 @@ None of these produce figures. Each operates on a features x samples DataFrame
 """
 from __future__ import annotations
 
+from math import comb
+
 import numpy as np
 import pandas as pd
 
@@ -119,6 +121,18 @@ def _classify_mechanism(df: pd.DataFrame, *, min_present: int = 3, alpha: float 
     vs (samples where feature is missing). One-sided test for present_means
     > absent_means: significant => MNAR.
 
+    A feature is INSUFFICIENT, not MAR, when the test cannot decide. That covers
+    fewer than ``min_present`` samples on either side, and designs where even the
+    most extreme outcome cannot reach ``alpha``. With every detected sample
+    outranking every missing one, the one-sided exact p-value is 1 / C(n, k) for
+    n samples of which k are missing: 1/20 = 0.05 for three against three, which
+    fails p < 0.05. Calling that MAR would state a conclusion the data cannot
+    support.
+
+    The same check stops a normal approximation claiming what the exact test
+    cannot. With a tied sample mean scipy switches from the exact test to an
+    approximation, which reports p = 0.038 for three against three.
+
     Returns DataFrame: feature, mechanism, missing_rate, mean_abundance, p_value.
     """
     from scipy import stats
@@ -131,7 +145,12 @@ def _classify_mechanism(df: pd.DataFrame, *, min_present: int = 3, alpha: float 
         n_total = len(vals)
         missing_rate = 1.0 - (n_present / n_total)
         mean_abundance = float(np.nanmean(vals)) if n_present else np.nan
-        if n_present < min_present or (n_total - n_present) < min_present:
+        n_absent = n_total - n_present
+        if n_present < min_present or n_absent < min_present:
+            rows.append((feature, "INSUFFICIENT", missing_rate, mean_abundance, np.nan))
+            continue
+        if 1 / comb(n_total, n_absent) >= alpha:
+            # The most extreme possible outcome still cannot reach alpha.
             rows.append((feature, "INSUFFICIENT", missing_rate, mean_abundance, np.nan))
             continue
         present_means = sample_mean[present_mask]

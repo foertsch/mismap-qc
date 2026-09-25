@@ -1576,12 +1576,15 @@ def missing_mechanism(
     df : DataFrame
         features (rows) x samples (columns). NaN = missing.
     method : str
-        Classification method. Only "mannwhitneyu" is implemented for v0.2.0.
+        Classification method. Only "mannwhitneyu" is currently implemented.
     alpha : float
         Significance threshold for the MNAR call.
     min_present : int
-        Minimum non-missing AND non-present samples required to test a feature.
-        Features below this threshold are classified "INSUFFICIENT".
+        Minimum number of detected samples, and of missing samples, needed to
+        test a feature. Features with fewer on either side are "INSUFFICIENT".
+        So are features where the sample counts make ``alpha`` unreachable: with
+        three detected and three missing, the smallest possible one-sided p-value
+        is 1/20 = 0.05, so the test cannot decide at ``alpha=0.05``.
     feature_type : str
         "PROT" | "GENE" | "PEPTIDE".
     show_scatter : bool
@@ -1604,7 +1607,9 @@ def missing_mechanism(
     fig : matplotlib.figure.Figure
     classification : DataFrame
         Columns: feature, mechanism, missing_rate, mean_abundance, p_value.
-        mechanism is one of {"MNAR", "MAR", "MCAR", "INSUFFICIENT"}.
+        mechanism is one of {"MNAR", "MAR", "INSUFFICIENT"}. "MAR" means no
+        evidence of abundance-dependent dropout; the test does not separate
+        missing-at-random from missing-completely-at-random.
 
     Examples
     --------
