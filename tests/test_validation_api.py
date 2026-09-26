@@ -122,7 +122,7 @@ def test_qc_mechanism_check():
         "feature", "mechanism", "missing_rate", "mean_abundance", "p_value",
     }
     assert set(report.feature_mechanism["mechanism"].unique()) <= {
-        "MNAR", "MAR", "MCAR", "INSUFFICIENT",
+        "MNAR", "MAR", "INSUFFICIENT",
     }
 
 

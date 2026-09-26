@@ -464,7 +464,7 @@ def test_missing_mechanism_returns_figure_and_df():
         "feature", "mechanism", "missing_rate", "mean_abundance", "p_value",
     }
     assert set(classification["mechanism"].unique()) <= {
-        "MNAR", "MAR", "MCAR", "INSUFFICIENT",
+        "MNAR", "MAR", "INSUFFICIENT",
     }
     plt.close("all")
 
@@ -600,4 +600,21 @@ def test_comissing_heatmap_save_to_disk(tmp_path):
     comissing_heatmap(make_flat_df(), save=str(out))
     assert out.exists()
     assert out.stat().st_size > 0
+    plt.close("all")
+
+
+def test_missing_mechanism_plots_only_categories_the_classifier_returns():
+    """The bar chart must not show a category the classifier cannot produce.
+
+    It used to draw an MCAR bar, permanently empty because the Mann-Whitney
+    classifier never separates MCAR from MAR. An always-zero bar reads as
+    "tested for MCAR and found none".
+    """
+    import matplotlib.pyplot as plt
+
+    from mismap_qc import missing_mechanism
+
+    fig, _ = missing_mechanism(make_flat_df(), show_scatter=False)
+    labels = [t.get_text() for t in fig.axes[0].get_yticklabels()]
+    assert labels == ["MNAR", "MAR", "INSUFFICIENT"]
     plt.close("all")
