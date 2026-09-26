@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json as _json
+import os as _os
+import sys as _sys
+import types as _types
 import warnings as _warnings
 from dataclasses import asdict, dataclass, replace
 
@@ -276,6 +279,38 @@ class MismapQCFailure(AssertionError):
             lines.append("")
         return "\n".join(lines)
 
+# Rules kept working for compatibility but slated for removal.
+_DEPRECATED_RULES = {
+    "min_sample_completeness_per_group": (
+        "min_sample_completeness_per_group is deprecated and will be removed in a "
+        "future release. It always returns the same value as "
+        "min_sample_completeness: the lowest completeness among each group's "
+        "lowest is the lowest overall. Use min_sample_completeness instead."
+    ),
+}
+
+_PACKAGE_DIR = _os.path.dirname(_os.path.abspath(__file__))
+
+
+def _stacklevel_outside_package() -> int:
+    """stacklevel attributing a warning to the first caller outside mismap_qc.
+
+    Python hides DeprecationWarning by default unless it is attributed to
+    __main__. qc(), assert_qc(), report.check() and report.passes() reach the
+    rule evaluator through different numbers of internal frames, so a fixed
+    stacklevel would attribute some of them to mismap_qc's own code, and those
+    users would never see the warning.
+    """
+    frame: _types.FrameType | None = _sys._getframe(1)
+    level = 1
+    while frame is not None and _os.path.abspath(frame.f_code.co_filename).startswith(
+        _PACKAGE_DIR
+    ):
+        frame = frame.f_back
+        level += 1
+    return level
+
+
 class _SkipRule(Exception):
     """Internal: raised when a rule cannot be evaluated (prerequisite check missing)."""
 
@@ -307,6 +342,14 @@ def _evaluate_thresholds(
         if sev not in ("error", "warning", "info"):
             raise ValueError(
                 f"Severity must be 'error', 'warning', or 'info'; got {sev!r}"
+            )
+
+    for rule in thresholds:
+        if rule in _DEPRECATED_RULES:
+            _warnings.warn(
+                _DEPRECATED_RULES[rule],
+                DeprecationWarning,
+                stacklevel=_stacklevel_outside_package(),
             )
 
     results = []
@@ -342,6 +385,8 @@ def _rule_min_sample_completeness(report, threshold, severity):
     return RuleResult("min_sample_completeness", severity, passed, threshold, min_comp, detail)
 
 def _rule_min_sample_completeness_per_group(report, threshold, severity):
+    # Deprecated: see _DEPRECATED_RULES. Kept returning its existing value so
+    # nobody's thresholds change meaning before the rule is removed.
     if (
         report.sample_outliers is None
         or "group" not in report.sample_outliers.columns

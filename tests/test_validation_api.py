@@ -359,3 +359,57 @@ def test_rule_skipped_when_check_not_run():
     # Rule was skipped; no result added; passed remains True.
     assert report.passed is True
     assert len(report.results) == 0
+
+
+# --- deprecation of min_sample_completeness_per_group ----------------------
+
+
+def _grouped_df():
+    cols = pd.MultiIndex.from_tuples(
+        [(g, f"{g}{i}") for g in "AB" for i in range(3)], names=["group", "sample"]
+    )
+    df = pd.DataFrame(np.ones((5, 6)), columns=cols)
+    df.iloc[:2, 4] = np.nan  # B1 loses 2 of 5
+    return df
+
+
+_DEPRECATED = {"min_sample_completeness_per_group": 0.1}
+
+_ENTRY_POINTS = {
+    "qc": lambda df: qc(df, group_level="group", thresholds=_DEPRECATED),
+    "assert_qc": lambda df: assert_qc(df, group_level="group", thresholds=_DEPRECATED),
+    "check": lambda df: qc(df, group_level="group").check(_DEPRECATED),
+    "passes": lambda df: qc(df, group_level="group").passes(_DEPRECATED),
+}
+
+
+@pytest.mark.parametrize("entry", list(_ENTRY_POINTS))
+def test_deprecated_rule_warns_from_every_entry_point(entry):
+    """The warning must be attributed to the caller's code, not mismap_qc's.
+
+    Python hides DeprecationWarning unless it is attributed to __main__. The
+    four entry points reach the evaluator through different numbers of
+    internal frames, and a fixed stacklevel attributed assert_qc() and
+    report.passes() to mismap_qc itself, which hid the warning from them.
+    """
+    with pytest.warns(DeprecationWarning, match="min_sample_completeness instead") as record:
+        _ENTRY_POINTS[entry](_grouped_df())
+    deprecations = [w for w in record if issubclass(w.category, DeprecationWarning)]
+    assert deprecations[0].filename == __file__
+
+
+def test_deprecated_rule_still_returns_the_same_value():
+    """Deprecated, not changed: thresholds set against it keep their meaning."""
+    report = qc(_grouped_df(), group_level="group")
+    with pytest.warns(DeprecationWarning):
+        (old,) = report.check({"min_sample_completeness_per_group": 0.5})
+    (new,) = report.check({"min_sample_completeness": 0.5})
+    assert old.actual == new.actual == pytest.approx(3 / 5)
+
+
+def test_rules_that_are_not_deprecated_do_not_warn():
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        qc(_grouped_df(), group_level="group").check({"min_sample_completeness": 0.5})
