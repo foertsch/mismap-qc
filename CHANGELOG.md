@@ -4,7 +4,14 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-09-28
+
+Fixes `missing_upset()` on pandas 3, where it crashed on any fresh install of
+the `upset` extra. No other changes to the library.
+
+```bash
+pip install --upgrade mismap-qc
+```
 
 ### Added
 
