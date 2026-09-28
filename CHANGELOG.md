@@ -83,6 +83,11 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Fixed
 
+- **`missing_mechanism()` no longer draws an empty MCAR bar.** Its bar chart had
+  a category for MCAR that was always zero, because the classifier never
+  separates MCAR from MAR. A bar that is always zero reads as "tested for MCAR
+  and found none". The chart now shows only the labels the classifier can
+  return: MNAR, MAR and INSUFFICIENT.
 - **Return-type annotations on the six `return_data` plot functions.** They were
   annotated `-> plt.Figure` but return `(Figure, DataFrame)` when
   `return_data=True`. The signatures now read

@@ -1627,15 +1627,17 @@ def missing_mechanism(
     if title is None:
         title = f"Missing-data mechanism ({fl['plural']})"
 
-    # Stable category order for plotting
-    categories = ["MNAR", "MAR", "MCAR", "INSUFFICIENT"]
+    # Stable category order for plotting. These are exactly the labels
+    # _classify_mechanism can return. It does not separate MCAR from MAR, so
+    # plotting an MCAR bar would show a permanently empty category, which reads
+    # as "tested for MCAR and found none".
+    categories = ["MNAR", "MAR", "INSUFFICIENT"]
     counts = classification["mechanism"].value_counts().reindex(categories, fill_value=0)
 
     # Literature-standard colours
     colors = {
         "MNAR": "#C44E52",
         "MAR": "#E1A050",
-        "MCAR": "#4C72B0",
         "INSUFFICIENT": "#8C8C8C",
     }
 
