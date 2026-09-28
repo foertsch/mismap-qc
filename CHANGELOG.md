@@ -17,6 +17,12 @@ All notable changes to mismap-qc. Format roughly follows
   with a badge in the README. Measured in the all-extras job, the only one that
   reaches the optional-dependency code paths.
 
+- **An `sdist` CI job** that builds the source distribution, extracts it, and runs
+  the bundled test suite from the extracted copy. Every other job tests the
+  working tree, so a file missing from the sdist allowlist could pass CI and still
+  ship a broken test suite, which happened once in 0.2.x and was caught by hand.
+  Verified by dropping `CITATION.cff` from the allowlist: the job fails.
+
 ### Changed
 
 - **Sample outlier detection now uses a robust z-score. This changes results.**

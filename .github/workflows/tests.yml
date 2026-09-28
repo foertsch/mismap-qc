@@ -96,3 +96,26 @@ jobs:
         # against the real packages. Pinned like ruff: a mypy release can change
         # what passes without a code change.
         run: uv run --all-extras --with mypy==2.3.1 mypy
+
+  sdist:
+    name: sdist builds and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build the sdist and run its test suite
+        # Every other job tests the working tree. This one tests what actually
+        # ships: build the sdist, extract it, and run the bundled test suite
+        # from the extracted copy, the way a downstream packager would. It
+        # catches files missing from the [tool.hatch.build.targets.sdist]
+        # allowlist, which the working-tree jobs cannot see.
+        run: |
+          set -euo pipefail
+          uv build --sdist --out-dir "$RUNNER_TEMP/dist"
+          mkdir -p "$RUNNER_TEMP/src"
+          tar -xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/src"
+          cd "$RUNNER_TEMP"/src/mismap_qc-*
+          uv run --isolated --with pytest --with . python -m pytest tests/ -q -p no:cacheprovider
