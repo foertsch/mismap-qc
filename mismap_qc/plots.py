@@ -1468,9 +1468,13 @@ def missing_runorder(
     run_order : array-like or None
         Explicit run order values (one per sample). Uses column index if None.
     group_level : int, str, or None
-        If set, colour points by this MultiIndex level (e.g. batch, condition).
+        If set, colour points by this MultiIndex level (e.g. batch, condition),
+        and compute the smoother separately within each group.
     smooth : bool
-        Add a rolling mean smoother line. Default True.
+        Add a rolling mean smoother line. Default True. With ``group_level``,
+        one line per group, so drift within an acquisition session is not
+        averaged with the next session. The line breaks wherever the gap
+        between consecutive run-order values exceeds ten times the median gap.
     smooth_window : int
         Window size for rolling mean. Default 5.
     title : str
@@ -1515,7 +1519,11 @@ def missing_runorder(
     fig, ax = plt.subplots(figsize=figsize, facecolor="white")
 
     # Plot points, optionally coloured by group
+    grouped = False
+    labels: np.ndarray | None = None
+    groups: list | None = None
     if group_level is not None and has_mi:
+        grouped = True
         if isinstance(group_level, str):
             grp_lv = list(df.columns.names).index(group_level)
         else:
@@ -1533,16 +1541,39 @@ def missing_runorder(
         ax.scatter(x, missing_rate, c="#2d2d2d", s=40, alpha=0.7,
                    edgecolors="white", linewidths=0.5)
 
-    # Smoother line (rolling mean)
+    # Smoother line (rolling mean). When grouped (e.g. by batch) the smoother is
+    # computed within each group, so it shows within-session drift and stops at
+    # group boundaries instead of averaging two separate sessions together.
+    # Either way the line breaks across large gaps in run order.
     if smooth and n_samples >= smooth_window:
-        sorted_idx = np.argsort(x)
-        x_sorted = x[sorted_idx]
-        y_sorted = missing_rate[sorted_idx]
-        y_smooth = pd.Series(y_sorted).rolling(
-            window=smooth_window, center=True, min_periods=1
-        ).mean().values
-        ax.plot(x_sorted, y_smooth, color="#CC4444", linewidth=2, alpha=0.8,
-                label=f"Rolling mean (n={smooth_window})")
+        def _smoothed(xs, ys):
+            """Sorted x and rolling mean, with NaN breaks across large gaps so
+            the line does not draw a flat segment through empty run order."""
+            si = np.argsort(xs)
+            xs = xs[si].astype(float)
+            ys = pd.Series(ys[si]).rolling(
+                window=smooth_window, center=True, min_periods=1
+            ).mean().to_numpy(dtype=float)
+            if xs.size > 2:
+                gaps = np.diff(xs)
+                pos = gaps[gaps > 0]
+                if pos.size:
+                    breaks = np.where(gaps > 10 * np.median(pos))[0] + 1
+                    xs = np.insert(xs, breaks, np.nan)
+                    ys = np.insert(ys, breaks, np.nan)
+            return xs, ys
+
+        smooth_label: str | None = f"Rolling mean (n={smooth_window})"
+        if grouped and labels is not None and groups is not None:
+            segments = [(x[labels == g], missing_rate[labels == g]) for g in groups]
+        else:
+            segments = [(x, missing_rate)]
+        for xs, ys in segments:
+            if xs.size < 2:
+                continue
+            ax.plot(*_smoothed(xs, ys), color="#CC4444", linewidth=2, alpha=0.8,
+                    label=smooth_label)
+            smooth_label = None  # one legend entry however many lines
 
     # Dataset mean line
     mean_missing = missing_rate.mean()

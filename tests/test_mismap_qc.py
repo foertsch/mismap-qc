@@ -615,6 +615,108 @@ def test_missing_runorder_save_to_disk(tmp_path: Path):
     plt.close("all")
 
 
+def _two_batch_df(n_per_batch: int = 6) -> pd.DataFrame:
+    """Ten features. Every B1 sample misses one of them (rate 0.1), every B2
+    sample misses five (rate 0.5), so any smoothing across the boundary shows."""
+    n = 2 * n_per_batch
+    data = np.ones((10, n))
+    data[:1, :n_per_batch] = np.nan
+    data[:5, n_per_batch:] = np.nan
+    cols = pd.MultiIndex.from_tuples(
+        [("B1" if j < n_per_batch else "B2", f"r{j}") for j in range(n)],
+        names=["Batch", "Run"])
+    return pd.DataFrame(data, index=[f"P{i}" for i in range(10)], columns=cols)
+
+
+def _smoother_lines(ax):
+    """The rolling-mean lines, as (x, y) arrays."""
+    from matplotlib.colors import to_hex
+
+    return [(np.asarray(ln.get_xdata(), dtype=float), np.asarray(ln.get_ydata(), dtype=float))
+            for ln in ax.get_lines() if to_hex(ln.get_color()) == "#cc4444"]
+
+
+def test_missing_runorder_smoother_stays_within_groups():
+    """Grouped, each batch gets its own smoother, so neither is pulled toward the
+    other batch at the boundary. A single global smoother read 0.26 at the last
+    B1 run."""
+    import matplotlib.pyplot as plt
+
+    fig = missing_runorder(_two_batch_df(), group_level="Batch")
+    lines = _smoother_lines(fig.axes[0])
+    assert len(lines) == 2
+    (x1, y1), (x2, y2) = lines
+    assert list(x1) == [0, 1, 2, 3, 4, 5] and np.allclose(y1, 0.1)
+    assert list(x2) == [6, 7, 8, 9, 10, 11] and np.allclose(y2, 0.5)
+    legend = [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
+    assert legend.count("Rolling mean (n=5)") == 1
+    plt.close("all")
+
+
+def test_missing_runorder_ungrouped_smoother_is_one_line():
+    """Without group_level there is still one smoother across all samples."""
+    import matplotlib.pyplot as plt
+
+    df = _two_batch_df().droplevel("Batch", axis=1)
+    fig = missing_runorder(df)
+    lines = _smoother_lines(fig.axes[0])
+    assert len(lines) == 1
+    x, y = lines[0]
+    assert not np.isnan(x).any()
+    assert y[5] == pytest.approx((0.1 * 3 + 0.5 * 2) / 5)
+    plt.close("all")
+
+
+def test_missing_runorder_smoother_breaks_across_run_order_gap():
+    """A gap far wider than the usual spacing (here 95 against 1) lifts the pen:
+    one NaN between the two runs of samples, both real endpoints kept."""
+    import matplotlib.pyplot as plt
+
+    df = _two_batch_df().droplevel("Batch", axis=1)
+    run_order = [1, 2, 3, 4, 5, 6, 101, 102, 103, 104, 105, 106]
+    fig = missing_runorder(df, run_order=run_order)
+    ((x, y),) = _smoother_lines(fig.axes[0])
+    nan_at = np.flatnonzero(np.isnan(x))
+    assert list(nan_at) == [6]
+    assert x[5] == 6 and x[7] == 101
+    assert np.isnan(y[6])
+    plt.close("all")
+
+
+def test_missing_runorder_smoother_breaks_within_a_group():
+    """The gap break applies inside a group too."""
+    import matplotlib.pyplot as plt
+
+    run_order = [1, 2, 3, 50, 51, 52, 200, 201, 202, 203, 204, 205]
+    fig = missing_runorder(_two_batch_df(), group_level="Batch", run_order=run_order)
+    (x1, _), (x2, _) = _smoother_lines(fig.axes[0])
+    assert list(np.flatnonzero(np.isnan(x1))) == [3]
+    assert not np.isnan(x2).any()
+    plt.close("all")
+
+
+def test_missing_runorder_contiguous_run_order_has_no_breaks():
+    """Evenly spaced runs never trigger the gap break."""
+    import matplotlib.pyplot as plt
+
+    fig = missing_runorder(make_flat_df(n_samples=12))
+    ((x, _),) = _smoother_lines(fig.axes[0])
+    assert not np.isnan(x).any()
+    plt.close("all")
+
+
+def test_missing_runorder_skips_smoother_for_single_sample_group():
+    """A group of one has nothing to smooth and gets no line."""
+    import matplotlib.pyplot as plt
+
+    df = _two_batch_df()
+    cols = [("B3" if j == 11 else b, r) for j, (b, r) in enumerate(df.columns)]
+    df.columns = pd.MultiIndex.from_tuples(cols, names=["Batch", "Run"])
+    fig = missing_runorder(df, group_level="Batch")
+    assert len(_smoother_lines(fig.axes[0])) == 2
+    plt.close("all")
+
+
 # ── missing_mechanism ─────────────────────────────────────────────────────────
 
 

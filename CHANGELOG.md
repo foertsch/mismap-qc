@@ -85,6 +85,15 @@ All notable changes to mismap-qc. Format roughly follows
   classifier has never produced it: "MAR" means no evidence of
   abundance-dependent dropout and covers both. Corrected.
 
+- **`missing_runorder()` smooths within each group.** With `group_level` set,
+  the rolling mean used to run over all samples in run order, so for two
+  acquisition batches it averaged across the boundary and drew one continuous
+  drift line through both sessions. Each group now gets its own line. The line
+  also breaks wherever the gap between consecutive run-order values is more than
+  ten times the median gap, instead of drawing a flat segment through run order
+  with no samples in it. This changes the plot only: `qc()` measures run-order
+  drift separately and its results are unaffected.
+
 ### Deprecated
 
 - **`min_sample_completeness_per_group`**, to be removed in a future release.
