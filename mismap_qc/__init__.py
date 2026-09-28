@@ -27,6 +27,7 @@ from .lod import estimate_lod
 from .plots import (
     comissing_heatmap,
     completeness_bars,
+    completeness_violin,
     detection_waterfall,
     missing_abundance_density,
     missing_matrix,
@@ -58,6 +59,7 @@ from .plots import (
     _RETURN_DATA_SCHEMAS,  # noqa: F401
     _data_comissing_heatmap,  # noqa: F401
     _data_completeness_bars,  # noqa: F401
+    _data_completeness_violin,  # noqa: F401
     _data_detection_waterfall,  # noqa: F401
     _data_missing_matrix,  # noqa: F401
     _data_missing_runorder,  # noqa: F401
@@ -90,6 +92,7 @@ __all__ = [
     "missing_matrix_html",
     "missing_abundance_density",
     "completeness_bars",
+    "completeness_violin",
     "detection_waterfall",
     "missing_runorder",
     "missing_mechanism",

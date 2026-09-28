@@ -26,6 +26,14 @@ All notable changes to mismap-qc. Format roughly follows
 - **Python 3.14** in the CI test matrix and the trove classifiers. The suite passes
   on 3.14 both bare and with every optional extra installed.
 
+- **`completeness_violin()`**, the distribution behind `completeness_bars()`.
+  A bar shows one mean per group; a violin shows every sample's completeness in
+  the group, so a single bad run is visible instead of averaged away.
+  `level="features"` shows each feature's detection rate within the group
+  instead. Groups are ordered and coloured as in `completeness_bars()`, and
+  `return_data=True` returns one row per sample or feature (`group`, `member`,
+  `value`, `level`).
+
 ### Changed
 
 - **Sample outlier detection now uses a robust z-score. This changes results.**

@@ -1,7 +1,9 @@
 """Plot functions. Each returns a Figure; with return_data=True, returns (Figure, DataFrame)."""
 from __future__ import annotations
 
+import inspect
 import warnings as _warnings
+from typing import cast
 
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec  # noqa: F401  (used by some legacy plots)
@@ -1278,6 +1280,199 @@ def completeness_bars(
         return fig, _data_completeness_bars(df, group_level)
     return fig
 
+def completeness_violin(
+    df: pd.DataFrame,
+    group_level: int | str,
+    *,
+    level: str = "samples",
+    threshold: float | None = None,
+    color: str | dict | None = None,
+    orientation: str = "vertical",
+    show_points: bool = True,
+    title: str = "Per-Group Completeness",
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+    return_data: bool = False,
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
+    """
+    Violin plot of per-group detection completeness.
+
+    Where :func:`completeness_bars` draws a single mean per group, this shows the
+    full distribution behind that mean. By default each violin is the per-sample
+    completeness (fraction of features detected in each sample) within a group,
+    so variable or outlier runs are visible, not just the average. Set
+    ``level="features"`` to instead show each feature's detection rate across the
+    group.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Features (rows) x Samples (columns). NaN = missing / not detected.
+        Columns may be a MultiIndex; use ``group_level`` to select the grouping.
+    group_level : int or str
+        Column level (index or name) to group samples by. Flat columns are
+        treated as a single group.
+    level : "samples" or "features"
+        What each violin summarises: the completeness of each sample in the group
+        (default) or the detection rate of each feature across the group. Groups
+        with fewer than two distinct values have no violin body, only their
+        points and mean.
+    threshold : float or None
+        Draw a dashed red line at this completeness value (0-1).
+    color : str, dict, or None
+        Single colour, ``{group: hex}`` dict, or the built-in palette (None).
+    orientation : "vertical" or "horizontal"
+        Violin orientation. Vertical (default) reads well for a few groups.
+    show_points : bool
+        Overlay the individual values as jittered points. Default True.
+    title : str
+        Figure title.
+    fontsize : int
+        Base font size (default 10).
+    save : str or None
+        Save figure to this path if set.
+    dpi : int
+        Save resolution (default 150).
+    return_data : bool
+        If True, also return the long-format tidy frame behind the plot as a
+        ``(Figure, DataFrame)`` tuple. Default False.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The violin figure. When ``return_data=True``, a
+        ``(Figure, pandas.DataFrame)`` tuple whose frame has one row per
+        (group, member) value.
+
+    Examples
+    --------
+    >>> fig = completeness_violin(df, "Condition")
+    >>> fig = completeness_violin(df, "Condition", level="features", threshold=0.5)
+    >>> fig, table = completeness_violin(df, "Condition", return_data=True)
+"""
+    if level not in ("samples", "features"):
+        raise ValueError(f'level must be "samples" or "features", got {level!r}')
+    if orientation not in ("vertical", "horizontal"):
+        raise ValueError(
+            f'orientation must be "vertical" or "horizontal", got {orientation!r}')
+    has_mi = isinstance(df.columns, pd.MultiIndex)
+
+    # Resolve groups (same convention as completeness_bars)
+    if has_mi:
+        if isinstance(group_level, str):
+            grp_lv = list(df.columns.names).index(group_level)
+        else:
+            grp_lv = group_level
+        labels = np.array(df.columns.get_level_values(grp_lv))
+    else:
+        labels = np.array(["All samples"] * len(df.columns))
+    groups = list(dict.fromkeys(labels))
+
+    # Distribution behind each group's mean completeness
+    dist: dict = {}
+    for grp in groups:
+        sub = df.loc[:, labels == grp]
+        axis = 1 if level == "features" else 0
+        dist[grp] = np.asarray(sub.notna().mean(axis=axis).values, dtype=float)
+
+    # Order groups by mean completeness, descending, as completeness_bars does,
+    # so the two plots list groups in the same order
+    groups_sorted = sorted(groups, key=lambda g: np.mean(dist[g]), reverse=True)
+    data = [dist[g] for g in groups_sorted]
+
+    # Colours (same resolution as completeness_bars)
+    if isinstance(color, dict):
+        colours = [color.get(g, "#4C72B0") for g in groups_sorted]
+    elif isinstance(color, str):
+        colours = [color] * len(groups_sorted)
+    else:
+        _, cmap = _assign_colors(np.array(groups_sorted), 0)
+        colours = [cmap[g] for g in groups_sorted]
+
+    n_groups = len(groups_sorted)
+    vert = orientation == "vertical"
+    figsize = ((max(4, n_groups * 1.4 + 1), 5) if vert
+               else (7, max(3, n_groups * 0.9 + 1)))
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+    positions = np.arange(n_groups)
+
+    # Violin bodies — skip degenerate groups (a KDE needs >=2 distinct values)
+    vp_data = [(i, d) for i, d in enumerate(data)
+               if d.size >= 2 and np.ptp(d) > 0]
+    if vp_data:
+        # matplotlib 3.10 replaced vert= with orientation= and warns on vert=
+        if "orientation" in inspect.signature(ax.violinplot).parameters:
+            orient_kw: dict = {"orientation": orientation}
+        else:
+            orient_kw = {"vert": vert}
+        parts = ax.violinplot([d for _, d in vp_data],
+                              positions=[positions[i] for i, _ in vp_data],
+                              widths=0.7, showmeans=False, showmedians=False,
+                              showextrema=False, **orient_kw)
+        # a list of PolyCollections at runtime; the stubs type it as one Collection
+        bodies = cast("list[mpl.collections.PolyCollection]", parts["bodies"])
+        for body, (i, _) in zip(bodies, vp_data):
+            body.set_facecolor(colours[i])
+            body.set_edgecolor("#666666")
+            body.set_alpha(0.35)
+
+    rng = np.random.default_rng(0)
+    for i, d in enumerate(data):
+        jit = (rng.random(d.size) - 0.5) * 0.12
+        if show_points:
+            px, py = (positions[i] + jit, d) if vert else (d, positions[i] + jit)
+            ax.scatter(px, py, s=18, color=colours[i], alpha=0.8,
+                       edgecolors="white", linewidths=0.4, zorder=3)
+        # mean marker, with its label just outside the widest violin (0.35)
+        m = float(np.mean(d))
+        if vert:
+            ax.plot([positions[i] - 0.25, positions[i] + 0.25], [m, m],
+                    color="#222222", linewidth=2, zorder=4)
+            ax.text(positions[i] + 0.38, m, f"{m:.1%}", va="center", ha="left",
+                    fontsize=fontsize - 1)
+        else:
+            ax.plot([m, m], [positions[i] - 0.25, positions[i] + 0.25],
+                    color="#222222", linewidth=2, zorder=4)
+            ax.text(m, positions[i] + 0.38, f"{m:.1%}", va="bottom", ha="center",
+                    fontsize=fontsize - 1)
+
+    pct = mpl.ticker.PercentFormatter(xmax=1)
+    if vert:
+        ax.set_xticks(positions)
+        ax.set_xticklabels(groups_sorted, fontsize=fontsize)
+        ax.set_ylabel("Completeness", fontsize=fontsize)
+        ax.set_ylim(0, 1.05)
+        ax.yaxis.set_major_formatter(pct)
+        if threshold is not None:
+            ax.axhline(threshold, color="#CC4444", linestyle="--", linewidth=1.2,
+                       alpha=0.9, label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+    else:
+        ax.set_yticks(positions)
+        ax.set_yticklabels(groups_sorted, fontsize=fontsize)
+        ax.set_xlabel("Completeness", fontsize=fontsize)
+        ax.set_xlim(0, 1.05)
+        ax.xaxis.set_major_formatter(pct)
+        if threshold is not None:
+            ax.axvline(threshold, color="#CC4444", linestyle="--", linewidth=1.2,
+                       alpha=0.9, label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+
+    fig.tight_layout()
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    if return_data:
+        return fig, _data_completeness_violin(df, group_level, level=level)
+    return fig
+
 def detection_waterfall(
     df: pd.DataFrame,
     thresholds: list[float] | None = None,
@@ -2113,6 +2308,26 @@ def _data_completeness_bars(df: pd.DataFrame, group_level) -> pd.DataFrame:
         rows.append((g, comp, int(mask.sum())))
     return pd.DataFrame(rows, columns=["group", "completeness", "n_samples"])
 
+def _data_completeness_violin(df: pd.DataFrame, group_level, *, level: str = "samples") -> pd.DataFrame:
+    """Long-form schema: columns [group, member, value, level]. One row per
+    (group, member): a sample's completeness (level="samples") or a feature's
+    detection rate (level="features") within the group."""
+    if isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        labels = np.array(df.columns.get_level_values(gl))
+    else:
+        labels = np.array(["all_samples"] * df.shape[1])
+    rows = []
+    for g in dict.fromkeys(labels):
+        sub = df.loc[:, labels == g]
+        vals = sub.notna().mean(axis=1) if level == "features" else sub.notna().mean(axis=0)
+        for member, value in zip(vals.index, np.asarray(vals.values, dtype=float)):
+            rows.append((g, str(member), float(value), level))
+    return pd.DataFrame(rows, columns=["group", "member", "value", "level"])
+
 def _data_detection_waterfall(df: pd.DataFrame) -> pd.DataFrame:
     """Schema: columns [feature, detection_rate, rank]."""
     rates = df.notna().mean(axis=1).sort_values(ascending=False)
@@ -2185,6 +2400,7 @@ def _data_missing_upset(
 _RETURN_DATA_SCHEMAS = {
     "missing_matrix": ["feature", "sample", "missing"],
     "completeness_bars": ["group", "completeness", "n_samples"],
+    "completeness_violin": ["group", "member", "value", "level"],
     "detection_waterfall": ["feature", "detection_rate", "rank"],
     "missing_runorder": ["sample", "run_order", "missing_rate", "group"],
     "comissing_heatmap": ["feature_a", "feature_b", "comissingness"],
