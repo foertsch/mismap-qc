@@ -224,13 +224,20 @@ def missing_matrix(
         figsize = (w, h)
 
     parts: list[tuple[str, float]] = []
+    matrix_h = max(6, n_genes * 0.08)
+    # keep each annotation strip tall enough to hold its own label: 0.4 is a
+    # sub-pixel sliver on tall matrices (label spills into the row above), so
+    # scale it with the matrix while preserving the old value for small data.
+    ann_h = max(0.4, matrix_h * 0.02)
     if show_dend:
         parts.append(("dend", 2.0))
     for lv in annotation_levels:
-        parts.append((f"ann_{lv}", 0.4))
-    parts.append(("matrix", max(6, n_genes * 0.08)))
+        parts.append((f"ann_{lv}", ann_h))
+    parts.append(("matrix", matrix_h))
     if show_spark and spark_below:
-        parts.append(("spark", 1.2))
+        # scale the completeness sparkline with the matrix so it stays readable
+        # on tall matrices (1.2 renders as a few px against ~150 matrix units)
+        parts.append(("spark", max(1.2, matrix_h * 0.045)))
 
     if "right" in legend_loc:
         gs_left, gs_right = 0.15, 0.82
@@ -277,10 +284,10 @@ def missing_matrix(
         )
         ax.set_xlim(-0.5, n_samples * 10 - 0.5)
         _clean_ax(ax)
-        ax.set_ylabel("Distance", fontsize=fs_ann, labelpad=8)
-        ax.tick_params(axis="y", labelsize=fs_legend)
-        ax.spines["left"].set_visible(True)
-        ax.spines["left"].set_color("#cccccc")
+        # bare dendrogram (clustermap convention): no axis label or distance
+        # ticks — they only crowd the "batch" strip on this thin row.
+        ax.set_yticks([])
+        ax.spines["left"].set_visible(False)
 
     # -- annotation strips --------------------------------------------------
     legend_handles: list[tuple[str, list[mpatches.Patch]]] = []
@@ -323,11 +330,14 @@ def missing_matrix(
             colors="white", linewidths=0.3,
         )
 
-    # X tick labels
+    # X tick labels — draw them on the lowest panel (the sparkline when it sits
+    # below, otherwise the matrix) so rotated labels never overlap the panel
+    # beneath them.
     sample_labels = (df.columns.get_level_values(label_level) if has_mi
                      else df.columns.astype(str))
+    labels_on_matrix = not (show_spark and spark_below)
     ax_mat.set_xticks(range(n_samples))
-    if n_samples <= 80:
+    if n_samples <= 80 and labels_on_matrix:
         ax_mat.set_xticklabels(sample_labels, rotation=90,
                                fontsize=fs_cols, ha="center")
         ax_mat.xaxis.tick_bottom()
@@ -359,9 +369,18 @@ def missing_matrix(
             ax_sp.set_ylim(0, 1.05)
             ax_sp.set_ylabel("Completeness", fontsize=fs_ann,
                              rotation=0, ha="right", va="center", labelpad=10)
-            ax_sp.set_xlabel("Samples", fontsize=fs_ann)
+            ax_sp.set_yticks([0, 1])
             ax_sp.tick_params(axis="y", labelsize=fs_legend)
-            ax_sp.tick_params(axis="x", labelbottom=False, length=0)
+            # sample labels live here (bottom-most panel), not on the matrix;
+            # the "Samples" title only stands in when there are too many to label
+            ax_sp.set_xticks(range(n_samples))
+            if n_samples <= 80:
+                ax_sp.set_xticklabels(sample_labels, rotation=90,
+                                      fontsize=fs_cols, ha="center")
+            else:
+                ax_sp.set_xticklabels([])
+                ax_sp.set_xlabel("Samples", fontsize=fs_ann)
+            ax_sp.tick_params(axis="x", length=0)
             ax_sp.spines["top"].set_visible(False)
             ax_sp.spines["right"].set_visible(False)
             ax_sp.spines["bottom"].set_visible(False)
@@ -1285,10 +1304,13 @@ def detection_waterfall(
     df : pandas.DataFrame
         Features (rows) x samples (columns). NaN = missing/not detected.
     thresholds : list of float or None
-        Detection rate thresholds to draw as horizontal lines (0-1 scale).
-        Default: [0.5, 0.7, 0.9].
+        Detection rate thresholds to draw as horizontal lines (0-1 scale),
+        each labelled with the number of features at or above it.
+        Without ``group_level``, a vertical line also drops from each threshold
+        to that count on the x-axis. Default: [0.5, 0.7, 0.9].
     group_level : int, str, or None
         If set, compute and plot separate curves per group (MultiIndex level).
+        The threshold counts stay pooled across all samples.
     feature_type : str
         Type of features: "PROT", "GENE", or "PEPTIDE". Used for axis labels.
     color : str
@@ -1330,7 +1352,9 @@ def detection_waterfall(
     fig, ax = plt.subplots(figsize=figsize, facecolor="white")
 
     # If grouping, plot one curve per group
+    grouped = False
     if group_level is not None and has_mi:
+        grouped = True
         if isinstance(group_level, str):
             grp_lv = list(df.columns.names).index(group_level)
         else:
@@ -1361,16 +1385,22 @@ def detection_waterfall(
     # Draw threshold lines with annotations
     n_features = len(df)
     for thresh in sorted(thresholds, reverse=True):
-        ax.axhline(thresh, color="#CC4444", linestyle="--", linewidth=1, alpha=0.8)
-
-        # Count features at or above this threshold
+        # Count features at or above this detection threshold
         n_above = int((df.notna().mean(axis=1) >= thresh).sum())
-        pct = n_above / n_features * 100
+        ax.axhline(thresh, color="#CC4444", linestyle="--", linewidth=1, alpha=0.8)
+        # Drop a vertical line from the threshold to the x-axis at the count, so
+        # it reads straight off the axis. The curve is ranked, so features 0 to
+        # n_above - 1 sit at or above the threshold and the curve has fallen
+        # below it by x = n_above. Only drawn for the single pooled curve: with
+        # one curve per group, the pooled count is not where any of them cross.
+        if not grouped:
+            ax.plot([n_above, n_above], [0, thresh], color="#CC4444",
+                    linestyle="--", linewidth=1, alpha=0.8)
 
-        # Position annotation at right edge
+        # Annotation at the right edge (detection-rate cutoff; no % of total).
         ax.text(
             n_features * 0.98, thresh + 0.02,
-            f"{n_above:,} {fl['plural']} ({pct:.0f}%) at ≥{thresh:.0%}",
+            f"{n_above:,} {fl['plural']} at ≥{thresh:.0%} detection",
             ha="right", va="bottom", fontsize=fontsize - 1, color="#CC4444"
         )
 
@@ -1389,13 +1419,16 @@ def detection_waterfall(
     if group_level is not None and has_mi:
         ax.legend(fontsize=fontsize - 1, loc="lower left")
 
-    # Title and subtitle
+    # Title and subtitle (stacked in the top margin; point-based offsets so the
+    # two never overlap regardless of figure size)
     if title:
-        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold",
+                     pad=24 if subtitle else 10)
     if subtitle:
-        ax.text(
-            0.5, 1.02, subtitle,
-            transform=ax.transAxes, ha="center", va="bottom",
+        ax.annotate(
+            subtitle, xy=(0.5, 1.0), xycoords="axes fraction",
+            xytext=(0, 5), textcoords="offset points",
+            ha="center", va="bottom",
             fontsize=fontsize - 1, fontstyle="italic", color="#666666"
         )
 
@@ -1530,13 +1563,16 @@ def missing_runorder(
     # Legend
     ax.legend(fontsize=fontsize - 1, loc="upper right")
 
-    # Title and subtitle
+    # Title and subtitle (stacked in the top margin; point-based offsets so the
+    # two never overlap regardless of figure size)
     if title:
-        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold",
+                     pad=24 if subtitle else 10)
     if subtitle:
-        ax.text(
-            0.5, 1.02, subtitle,
-            transform=ax.transAxes, ha="center", va="bottom",
+        ax.annotate(
+            subtitle, xy=(0.5, 1.0), xycoords="axes fraction",
+            xytext=(0, 5), textcoords="offset points",
+            ha="center", va="bottom",
             fontsize=fontsize - 1, fontstyle="italic", color="#666666"
         )
 
