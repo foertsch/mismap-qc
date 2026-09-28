@@ -107,15 +107,91 @@ def test_missing_upset_return_data_schema():
     plt.close("all")
 
 
-def test_missing_upset_emits_no_futurewarnings():
-    """upsetplot 0.9.0 emits pandas FutureWarnings from its own internals. They are
-    suppressed narrowly around the plot call so callers are not shown warnings they
-    cannot act on."""
+def test_missing_upset_emits_no_upstream_pandas_warnings():
+    """upsetplot 0.9.0 emits pandas warnings from its own internals, FutureWarning
+    on pandas 2 and ChainedAssignmentError on pandas 3. They are suppressed
+    narrowly around the plot call so callers are not shown warnings they cannot
+    act on."""
+    upstream = (FutureWarning, pd.errors.ChainedAssignmentError)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         missing_upset(make_flat_df())
-    leaked = [str(w.message) for w in caught if issubclass(w.category, FutureWarning)]
-    assert not leaked, f"leaked upstream FutureWarnings: {leaked}"
+    leaked = [str(w.message) for w in caught if issubclass(w.category, upstream)]
+    assert not leaked, f"leaked upstream pandas warnings: {leaked}"
+    plt.close("all")
+
+
+# --- pandas 3 workaround for upsetplot's matrix ------------------------------
+
+
+class _RecordingAx:
+    """Stands in for a matplotlib Axes: records what scatter receives."""
+
+    def __init__(self):
+        self.calls = []
+
+    def scatter(self, *args, **kwargs):
+        self.calls.append(kwargs)
+        return "collection"
+
+
+def test_matrix_shim_fills_what_pandas_3_leaves_nan():
+    """What upsetplot's fillna meant to do: edge colour from the face colour,
+    line width 1, solid lines. Values already set are kept."""
+    from mismap_qc.plots import _upset_matrix_fills_nan_styles
+
+    ax = _RecordingAx()
+    nan = float("nan")
+    with _upset_matrix_fills_nan_styles(ax):
+        out = ax.scatter(
+            [0, 1, 2], [0, 0, 0],
+            facecolors=pd.Series(["#2d2d2d", "#dddddd", "#2d2d2d"]),
+            edgecolors=pd.Series([nan, nan, "#ff0000"]),
+            linewidths=pd.Series([nan, 0.0, 2.0]),
+            linestyles=pd.Series([nan, nan, "dashed"]),
+        )
+    assert out == "collection"
+    (kw,) = ax.calls
+    assert kw["edgecolors"] == ["#2d2d2d", "#dddddd", "#ff0000"]
+    assert kw["linewidths"] == [1, 0.0, 2.0]
+    assert kw["linestyles"] == ["solid", "solid", "dashed"]
+
+
+def test_matrix_shim_is_removed_afterwards():
+    """The patched scatter lives only for the duration of the matrix draw, even
+    if drawing fails."""
+    from mismap_qc.plots import _upset_matrix_fills_nan_styles
+
+    ax = _RecordingAx()
+    with pytest.raises(RuntimeError):
+        with _upset_matrix_fills_nan_styles(ax):
+            assert "scatter" in vars(ax)
+            raise RuntimeError("draw failed")
+    assert "scatter" not in vars(ax)
+    ax.scatter(edgecolors=[float("nan")])  # unpatched: passed through untouched
+    assert np.isnan(ax.calls[-1]["edgecolors"][0])
+
+
+def test_missing_upset_draws_matrix_through_the_shim(monkeypatch):
+    """missing_upset routes upsetplot's matrix through the shim, so no NaN
+    style reaches matplotlib whichever pandas is installed."""
+    import matplotlib.axes
+
+    seen = []
+    original = matplotlib.axes.Axes.scatter
+
+    def recording(self, *args, **kwargs):
+        seen.append(kwargs)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, "scatter", recording)
+    missing_upset(make_flat_df())
+    matrix_calls = [kw for kw in seen if "edgecolors" in kw]
+    assert matrix_calls
+    for kw in matrix_calls:
+        for key in ("edgecolors", "linewidths", "linestyles"):
+            values = list(kw[key])
+            assert not any(isinstance(v, float) and np.isnan(v) for v in values), key
     plt.close("all")
 
 

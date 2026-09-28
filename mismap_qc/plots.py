@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import inspect
+import math
 import warnings as _warnings
+from contextlib import contextmanager
 from typing import cast
 
 import matplotlib as mpl
@@ -2104,6 +2106,37 @@ def comissing_heatmap(
         return fig, _data_comissing_heatmap(df, top_n=top_n)
     return fig
 
+@contextmanager
+def _upset_matrix_fills_nan_styles(ax):
+    """Fill the dot styles upsetplot 0.9.0 leaves as NaN on pandas 3.
+
+    upsetplot's matrix fills unset styles with in-place ``fillna`` calls on
+    DataFrame columns. Under pandas 3 copy-on-write those no longer write back,
+    so NaN edge colours reach ``ax.scatter`` and matplotlib raises "Invalid RGBA
+    argument: nan" (jnothman/UpSetPlot#303). While active, this applies the same
+    defaults upsetplot meant to: edge colour from the face colour, line width 1,
+    solid lines. On pandas 2 the values are already filled and nothing changes.
+    """
+    def is_nan(value):
+        return isinstance(value, float) and math.isnan(value)
+
+    scatter = ax.scatter
+
+    def filled_scatter(*args, **kwargs):
+        faces, edges = kwargs.get("facecolors"), kwargs.get("edgecolors")
+        if faces is not None and edges is not None:
+            kwargs["edgecolors"] = [f if is_nan(e) else e for e, f in zip(edges, faces)]
+        for key, default in (("linewidths", 1), ("linestyles", "solid")):
+            if kwargs.get(key) is not None:
+                kwargs[key] = [default if is_nan(v) else v for v in kwargs[key]]
+        return scatter(*args, **kwargs)
+
+    ax.scatter = filled_scatter
+    try:
+        yield
+    finally:
+        del ax.scatter
+
 def missing_upset(
     df: pd.DataFrame,
     *,
@@ -2232,23 +2265,33 @@ def missing_upset(
 
     fig = plt.figure(figsize=figsize, facecolor="white")
     # upsetplot 0.9.0 uses chained inplace fillna internally, which emits several
-    # pandas FutureWarnings per call. They are upstream and not actionable by
-    # callers of this function, so they are suppressed here rather than shown.
-    # Scoped to these calls only, so warnings from our own code still surface.
+    # pandas warnings per call: FutureWarning on pandas 2, ChainedAssignmentError
+    # on pandas 3. They are upstream and not actionable by callers of this
+    # function, so they are suppressed here rather than shown. Scoped to these
+    # calls only, so warnings from our own code still surface.
     with mpl.rc_context({"font.size": fontsize}), _warnings.catch_warnings():
         _warnings.simplefilter("ignore", FutureWarning)
+        _warnings.simplefilter("ignore", pd.errors.ChainedAssignmentError)
         series = upsetplot.from_memberships(memberships)
         # show_counts is deliberately off: upsetplot 0.9.0 draws those labels in a
         # way matplotlib 3.10 rejects ("only 0-dimensional arrays can be converted
         # to Python scalars") and the figure then fails at draw time, not at
         # construction. Intersection sizes are on the bar axis and in the
         # return_data table.
-        upsetplot.UpSet(
+        upset = upsetplot.UpSet(
             series,
             subset_size="count",
             sort_by="cardinality",
             facecolor="#2d2d2d",
-        ).plot(fig=fig)
+        )
+        draw_matrix = upset.plot_matrix
+
+        def plot_matrix(ax):
+            with _upset_matrix_fills_nan_styles(ax):
+                return draw_matrix(ax)
+
+        upset.plot_matrix = plot_matrix  # type: ignore[method-assign]
+        upset.plot(fig=fig)
 
     caption = subtitle
     if n_shown < n_total:

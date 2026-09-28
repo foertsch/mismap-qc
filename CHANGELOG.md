@@ -4,6 +4,20 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`missing_upset()` crashed on pandas 3** with `ValueError: Invalid RGBA
+  argument: nan`, in 0.3.x and 0.4.0 alike. upsetplot 0.9.0, the latest release,
+  fills unset dot styles with in-place `fillna` calls on DataFrame columns, which
+  pandas 3's copy-on-write no longer writes back
+  ([jnothman/UpSetPlot#303](https://github.com/jnothman/UpSetPlot/issues/303)).
+  `missing_upset()` now applies those defaults itself for the duration of the
+  matrix draw. The figure is pixel-identical on pandas 2 and 3. The four
+  `ChainedAssignmentError` warnings upsetplot emits per call on pandas 3 are
+  suppressed along with its pandas 2 FutureWarnings.
+
 ## [0.4.0] - 2026-09-28
 
 Two checks now give different results on the same data: sample outlier
