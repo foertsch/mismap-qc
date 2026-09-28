@@ -424,26 +424,23 @@ def test_completeness_violin_colours(color, expected):
 
 
 def test_completeness_violin_falls_back_to_vert_on_old_matplotlib(monkeypatch):
-    """Before matplotlib 3.10 violinplot has no orientation= and takes vert=."""
-    import inspect
-    import warnings
-
+    """Before matplotlib 3.10 violinplot has no orientation= and takes vert=.
+    The recording wrapper's own signature, (self, *args, **kwargs), has no
+    orientation parameter, so it stands in for the old violinplot. It hands the
+    real one orientation=, since current matplotlib deprecates vert=."""
     import matplotlib.pyplot as plt
     from matplotlib.axes import Axes
-
-    import mismap_qc.plots as plots
 
     calls = []
     original = Axes.violinplot
 
     def recording(self, *args, **kwargs):
-        calls.append(kwargs)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", PendingDeprecationWarning)
-            return original(self, *args, **kwargs)
+        calls.append(dict(kwargs))
+        if "vert" in kwargs:
+            kwargs["orientation"] = "vertical" if kwargs.pop("vert") else "horizontal"
+        return original(self, *args, **kwargs)
 
     monkeypatch.setattr(Axes, "violinplot", recording)
-    monkeypatch.setattr(plots.inspect, "signature", lambda f: inspect.Signature())
     completeness_violin(_violin_df(), group_level="Condition", orientation="horizontal")
     assert len(calls) == 1
     assert calls[0].get("vert") is False and "orientation" not in calls[0]
