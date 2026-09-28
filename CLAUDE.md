@@ -22,7 +22,7 @@ As of 0.2.0 the project is split from a single `mismap_qc.py` into a `mismap_qc/
 | `mismap_qc/_core.py` | ~60 | Constants and layout helpers: `_PALETTES`, `FEATURE_TYPES`, `_get_feature_labels`, `_assign_colors`, `_clean_ax`, `_resolve_color_overrides`. |
 | `mismap_qc/stats.py` | ~190 | Pure-numeric analytical helpers shared by `qc()` and the plot functions: `_classify_mechanism`, `_top_codropouts`, `_comissing_matrix`, `_batch_missing_test`, `_runorder_trend`, `_compute_sample_outliers`, `_resolve_group_labels`. |
 | `mismap_qc/validation.py` | ~615 | Validation API: `MismapReport`, `RuleResult`, `MismapQCWarning`, `MismapQCFailure`, the 11-rule registry, `_evaluate_thresholds`, `qc()`, `assert_qc()`. |
-| `mismap_qc/plots.py` | ~1855 | All plot functions (`missing_matrix`, `missing_matrix_html`, `completeness_bars`, `detection_waterfall`, `missing_runorder`, `missing_mechanism`, `comissing_heatmap`, `missing_abundance_density`) plus the `_data_*` helpers and `_RETURN_DATA_SCHEMAS` registry that backs `return_data=True`. |
+| `mismap_qc/plots.py` | ~1855 | All plot functions (`missing_matrix`, `missing_matrix_html`, `completeness_bars`, `completeness_violin`, `detection_waterfall`, `missing_runorder`, `missing_mechanism`, `comissing_heatmap`, `missing_abundance_density`) plus the `_data_*` helpers and `_RETURN_DATA_SCHEMAS` registry that backs `return_data=True`. |
 | `mismap_qc/io.py` | ~155 | `from_anndata()` reader. `anndata` is an optional dependency. |
 | `mismap_qc/lod.py` | ~60 | `estimate_lod()`. Future Scope E items go here. |
 
@@ -177,7 +177,7 @@ def test_new_function_returns_figure():
 ### Validation API (new in 0.2.0)
 - [x] `qc()` / `assert_qc()` / `MismapReport`
 - [x] 11 threshold rules with error / warning / info severities
-- [x] `return_data=True` on the six plots with a tabular result (`missing_matrix`, `completeness_bars`, `detection_waterfall`, `missing_runorder`, `comissing_heatmap`, `missing_upset`). `missing_mechanism` always returns `(Figure, DataFrame)`. `missing_abundance_density` and `missing_matrix_html` have no tabular result.
+- [x] `return_data=True` on the seven plots with a tabular result (`missing_matrix`, `completeness_bars`, `completeness_violin`, `detection_waterfall`, `missing_runorder`, `comissing_heatmap`, `missing_upset`). `missing_mechanism` always returns `(Figure, DataFrame)`. `missing_abundance_density` and `missing_matrix_html` have no tabular result.
 - [x] `from_anndata()` interop reader
 - [x] `estimate_lod()` (Scope E.1)
 

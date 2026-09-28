@@ -38,6 +38,7 @@ PUBLIC = [
     "missing_matrix_html",
     "missing_abundance_density",
     "completeness_bars",
+    "completeness_violin",
     "detection_waterfall",
     "missing_runorder",
     "missing_mechanism",

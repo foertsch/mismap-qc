@@ -21,6 +21,7 @@ from mismap_qc import (  # noqa: E402
     _RETURN_DATA_SCHEMAS,
     comissing_heatmap,
     completeness_bars,
+    completeness_violin,
     detection_waterfall,
     missing_matrix,
     missing_runorder,
@@ -54,6 +55,7 @@ def _make_multi(n_features=20, n_per_group=5, missing_frac=0.2, seed=0):
 _CASES = [
     (missing_matrix, {}, "missing_matrix"),
     (completeness_bars, {"group_level": "condition"}, "completeness_bars"),
+    (completeness_violin, {"group_level": "condition"}, "completeness_violin"),
     (detection_waterfall, {}, "detection_waterfall"),
     (missing_runorder, {}, "missing_runorder"),
     (comissing_heatmap, {"top_n": 10}, "comissing_heatmap"),

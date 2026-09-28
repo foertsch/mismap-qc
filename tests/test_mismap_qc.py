@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from mismap_qc import (
     comissing_heatmap,
     completeness_bars,
+    completeness_violin,
     detection_waterfall,
     missing_matrix,
     missing_matrix_html,
@@ -263,6 +264,215 @@ def test_completeness_bars_save_to_disk(tmp_path: Path):
     out = tmp_path / "completeness.png"
     completeness_bars(make_multiindex_df(), group_level="Condition",
                       save=str(out))
+    assert out.exists()
+    assert out.stat().st_size > 0
+    plt.close("all")
+
+
+# ── completeness_violin ───────────────────────────────────────────────────────
+
+
+def _violin_df() -> pd.DataFrame:
+    """Ten features. Group A samples are 100%, 80% and 60% complete (mean 80%);
+    both group B samples are 50% complete, so B has no spread to draw a KDE of."""
+    data = np.ones((10, 5))
+    data[:2, 1] = np.nan   # A2: 8 of 10
+    data[:4, 2] = np.nan   # A3: 6 of 10
+    data[:5, 3] = np.nan   # B1: 5 of 10
+    data[5:, 4] = np.nan   # B2: 5 of 10, the other half
+    cols = pd.MultiIndex.from_tuples(
+        [("A", "A1"), ("A", "A2"), ("A", "A3"), ("B", "B1"), ("B", "B2")],
+        names=["Condition", "Sample"])
+    return pd.DataFrame(data, index=[f"P{i}" for i in range(10)], columns=cols)
+
+
+def _violin_bodies(ax):
+    from matplotlib.collections import PathCollection, PolyCollection
+
+    return [c for c in ax.collections
+            if isinstance(c, PolyCollection) and not isinstance(c, PathCollection)]
+
+
+def _scatter_points(ax):
+    from matplotlib.collections import PathCollection
+
+    return [c for c in ax.collections if isinstance(c, PathCollection)]
+
+
+def test_completeness_violin_returns_figure():
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_flat_df(), group_level=0)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_multiindex():
+    """One violin position per group of the chosen level."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition")
+    labels = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+    assert sorted(labels) == ["Conditioned", "Fresh"]
+    plt.close("all")
+
+
+def test_completeness_violin_flat_df():
+    """Flat columns collapse to a single group."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_flat_df(), group_level=0)
+    assert [t.get_text() for t in fig.axes[0].get_xticklabels()] == ["All samples"]
+    plt.close("all")
+
+
+def test_completeness_violin_known_values():
+    """Means, labels, ordering and which groups get a violin body."""
+    import matplotlib.pyplot as plt
+
+    fig, data = completeness_violin(_violin_df(), group_level="Condition",
+                                    return_data=True)
+    ax = fig.axes[0]
+    # A (mean 0.8) before B (mean 0.5)
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["A", "B"]
+    assert sorted(t.get_text() for t in ax.texts) == ["50.0%", "80.0%"]
+    # B has zero variance: no KDE, but its points are still drawn
+    assert len(_violin_bodies(ax)) == 1
+    assert len(_scatter_points(ax)) == 2
+    by_member = dict(zip(data["member"], data["value"]))
+    assert by_member == pytest.approx(
+        {"('A', 'A1')": 1.0, "('A', 'A2')": 0.8, "('A', 'A3')": 0.6,
+         "('B', 'B1')": 0.5, "('B', 'B2')": 0.5})
+    assert set(data["level"]) == {"samples"}
+    plt.close("all")
+
+
+def test_completeness_violin_level_features():
+    """level="features" gives each feature's detection rate within the group."""
+    import matplotlib.pyplot as plt
+
+    fig, data = completeness_violin(_violin_df(), group_level="Condition",
+                                    level="features", return_data=True)
+    b = data[data["group"] == "B"].set_index("member")["value"]
+    # every feature is missing in exactly one of B's two samples
+    assert (b == 0.5).all() and len(b) == 10
+    a = data[data["group"] == "A"].set_index("member")["value"]
+    assert a["P0"] == pytest.approx(1 / 3) and a["P9"] == 1.0
+    assert set(data["level"]) == {"features"}
+    plt.close("all")
+
+
+def test_completeness_violin_orders_groups_like_completeness_bars():
+    """Groups are ordered by mean, as in completeness_bars. Here the median would
+    put X first (1.0 against 0.8) but the mean puts Y first (0.8 against 0.7)."""
+    import matplotlib.pyplot as plt
+
+    data = np.ones((10, 6))
+    data[:9, 2] = np.nan     # X: 1.0, 1.0, 0.1
+    data[:2, 3:] = np.nan    # Y: 0.8, 0.8, 0.8
+    cols = pd.MultiIndex.from_tuples(
+        [("X", "x1"), ("X", "x2"), ("X", "x3"), ("Y", "y1"), ("Y", "y2"), ("Y", "y3")],
+        names=["Condition", "Sample"])
+    df = pd.DataFrame(data, columns=cols)
+    bars = completeness_bars(df, "Condition", orientation="vertical")
+    violin = completeness_violin(df, "Condition")
+    order = [t.get_text() for t in bars.axes[0].get_xticklabels()]
+    assert order == ["Y", "X"]
+    assert [t.get_text() for t in violin.axes[0].get_xticklabels()] == order
+    plt.close("all")
+
+
+def test_completeness_violin_threshold():
+    """The threshold is a horizontal line when vertical."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition",
+                              threshold=0.7)
+    ys = [ln.get_ydata() for ln in fig.axes[0].get_lines()
+          if ln.get_label() == "70% threshold"]
+    assert len(ys) == 1 and list(ys[0]) == [0.7, 0.7]
+    plt.close("all")
+
+
+def test_completeness_violin_horizontal():
+    """Horizontal puts groups on the y-axis and the threshold on x."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition",
+                              orientation="horizontal", threshold=0.7)
+    ax = fig.axes[0]
+    assert sorted(t.get_text() for t in ax.get_yticklabels()) == ["Conditioned", "Fresh"]
+    xs = [ln.get_xdata() for ln in ax.get_lines() if ln.get_label() == "70% threshold"]
+    assert len(xs) == 1 and list(xs[0]) == [0.7, 0.7]
+    plt.close("all")
+
+
+def test_completeness_violin_no_matplotlib_deprecation_warnings():
+    """violinplot's vert= is deprecated from matplotlib 3.10; neither orientation
+    may warn."""
+    import warnings
+
+    import matplotlib.pyplot as plt
+
+    for orientation in ("vertical", "horizontal"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PendingDeprecationWarning)
+            warnings.simplefilter("error", DeprecationWarning)
+            completeness_violin(make_multiindex_df(), group_level="Condition",
+                                orientation=orientation)
+    plt.close("all")
+
+
+def test_completeness_violin_hide_points():
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(_violin_df(), group_level="Condition", show_points=False)
+    assert _scatter_points(fig.axes[0]) == []
+    plt.close("all")
+
+
+@pytest.mark.parametrize("kwargs", [{"level": "sample"}, {"orientation": "vert"}])
+def test_completeness_violin_rejects_unknown_options(kwargs):
+    with pytest.raises(ValueError):
+        completeness_violin(_violin_df(), group_level="Condition", **kwargs)
+
+
+def test_completeness_violin_zero_variance():
+    """All-present groups have no spread (ptp == 0): skip the violin, not crash."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df().fillna(1.0)
+    fig = completeness_violin(df, group_level="Condition")
+    assert _violin_bodies(fig.axes[0]) == []
+    plt.close("all")
+
+
+def test_completeness_violin_all_missing():
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df()
+    df.loc[:, :] = np.nan
+    fig = completeness_violin(df, group_level="Condition")
+    assert sorted(t.get_text() for t in fig.axes[0].texts) == ["0.0%", "0.0%"]
+    plt.close("all")
+
+
+def test_completeness_violin_all_present():
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df().fillna(1.0)
+    fig = completeness_violin(df, group_level="Condition")
+    assert sorted(t.get_text() for t in fig.axes[0].texts) == ["100.0%", "100.0%"]
+    plt.close("all")
+
+
+def test_completeness_violin_save_to_disk(tmp_path: Path):
+    """Save parameter writes a PNG file."""
+    import matplotlib.pyplot as plt
+
+    out = tmp_path / "violin.png"
+    completeness_violin(make_multiindex_df(), group_level="Condition",
+                        save=str(out))
     assert out.exists()
     assert out.stat().st_size > 0
     plt.close("all")
