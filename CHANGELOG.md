@@ -13,6 +13,41 @@ All notable changes to mismap-qc. Format roughly follows
   approach, so a checker release cannot change what passes without a deliberate
   bump.
 
+### Changed
+
+- **Sample outlier detection now uses a robust z-score. This changes results.**
+  The previous check used a classic z-score (`|z| > 2.5`), which could not flag
+  any sample in a group of eight or fewer. An outlier inflates the standard
+  deviation it is measured against, capping |z| at (n - 1) / sqrt(n): 1.79 for
+  five replicates, so a replicate missing 90% of its features went unflagged.
+  Most proteomics designs have three to eight replicates per condition.
+
+  A sample is now flagged when, within its group, its robust z-score (median and
+  median absolute deviation, after Iglewicz & Hoaglin) exceeds 3.5 **and** its
+  missing rate is at least 0.10 above the group median. Requiring both avoids
+  false alarms in either direction: the z-score alone flags trivially worse
+  samples in groups that agree closely, and the gap alone flags ordinary
+  variation in noisy ones.
+
+  Consequences for existing users:
+
+  - **`max_sample_outlier_zscore` now compares against the robust z-score**, which
+    runs on a different scale. A threshold set for the old score means something
+    else now.
+  - **Flagging is one-sided.** Only samples worse than their peers are flagged,
+    and `max_sample_outlier_zscore` measures the same direction. A sample with
+    unusually *low* missingness no longer fails it.
+  - **Groups under three samples are reported as not evaluable** rather than as
+    having no outliers. Their `z_score` is NaN, the new `evaluable` column is
+    False, both outlier rules are skipped, and the report says "outliers not
+    evaluable". Previously these groups silently reported zero outliers.
+  - The `max_sample_outlier_zscore` failure message lists only samples above the
+    threshold. It previously listed the three highest scores whether or not they
+    crossed it.
+
+- **New `qc()` options** `outlier_z_threshold` (default 3.5) and
+  `outlier_min_delta` (default 0.10) to tune the two conditions.
+
 ### Fixed
 
 - **Return-type annotations on the six `return_data` plot functions.** They were

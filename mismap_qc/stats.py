@@ -24,35 +24,92 @@ def _resolve_group_labels(df: pd.DataFrame, group_level):
     groups = np.array([t[lv] for t in df.columns])
     return lv, groups
 
-def _compute_sample_outliers(df, sample_missing_rate, groups, *, z_threshold=2.5):
-    """Per-sample z-score of missingness, within group if groups provided."""
+# Scale factors that put an absolute-deviation measure on the same footing as a
+# standard deviation for normally distributed data.
+_MAD_SCALE = 0.6745          # Phi^-1(0.75), for the median absolute deviation
+_MEANAD_SCALE = 1.253314     # sqrt(pi / 2), for the mean absolute deviation
+
+
+def _robust_z(values):
+    """Modified z-score of each value against its peers, and the peers' median.
+
+    Uses the median and the median absolute deviation (MAD) rather than the mean
+    and standard deviation, following Iglewicz & Hoaglin (1993). A single extreme
+    value inflates the standard deviation it is measured against, which caps the
+    classic z-score at (n - 1) / sqrt(n): below 2.5 for any n <= 8. The MAD is
+    not inflated that way, so an outlier registers even in a group of three.
+
+    When more than half the values are identical the MAD is zero. The mean
+    absolute deviation is then used instead, a common fallback. If every value
+    is identical there is nothing to detect, and all scores are zero.
+    """
+    median = float(np.median(values))
+    deviation = values - median
+    mad = float(np.median(np.abs(deviation)))
+    if mad > 0:
+        return _MAD_SCALE * deviation / mad, median
+    mean_ad = float(np.mean(np.abs(deviation)))
+    if mean_ad > 0:
+        return deviation / (_MEANAD_SCALE * mean_ad), median
+    return np.zeros_like(values), median
+
+
+def _compute_sample_outliers(
+    df, sample_missing_rate, groups, *, z_threshold=3.5, min_delta=0.10, min_samples=3
+):
+    """Flag samples whose missingness is unusually high for their group.
+
+    A sample is flagged when both of these hold, within its group (or across all
+    samples when no groups are given):
+
+    - its robust z-score (see ``_robust_z``) exceeds ``z_threshold``, and
+    - its missing rate is more than ``min_delta`` above the group median.
+
+    Either condition alone gives false alarms. The z-score alone flags a
+    trivially worse sample in a group that happens to agree closely; the gap
+    alone flags ordinary variation in a noisy group. Only samples worse than
+    their peers are flagged: unusually low missingness is not a quality problem.
+
+    Groups with fewer than ``min_samples`` samples cannot estimate spread. Their
+    samples get ``z_score`` NaN and ``evaluable`` False and are never flagged,
+    so a small group reports "not evaluable" rather than "no outliers".
+    """
     miss = sample_missing_rate.values.astype(float)
-    sample_names = [str(c) for c in df.columns]
-    z = np.zeros_like(miss)
+    n = len(miss)
+    z = np.full(n, np.nan)
+    group_median = np.full(n, np.nan)
+    evaluable = np.zeros(n, dtype=bool)
+
     if groups is not None:
         group_labels = list(groups)
-        unique = np.unique(groups)
-        for g in unique:
-            mask = groups == g
-            if mask.sum() >= 3:
-                sub = miss[mask]
-                std = float(np.std(sub, ddof=1)) if mask.sum() > 1 else 0.0
-                if std > 0:
-                    z[mask] = (sub - sub.mean()) / std
+        blocks = [groups == g for g in np.unique(groups)]
     else:
-        group_labels = [None] * len(miss)
-        std = float(np.std(miss, ddof=1)) if len(miss) > 1 else 0.0
-        if std > 0:
-            z = (miss - miss.mean()) / std
+        group_labels = [None] * n
+        blocks = [np.ones(n, dtype=bool)]
+
+    for mask in blocks:
+        if mask.sum() < min_samples:
+            continue
+        scores, median = _robust_z(miss[mask])
+        z[mask] = scores
+        group_median[mask] = median
+        evaluable[mask] = True
+
+    excess = miss - group_median
+    with np.errstate(invalid="ignore"):
+        flagged = evaluable & (z > z_threshold) & (excess > min_delta)
+
     return pd.DataFrame(
         {
-            "sample": sample_names,
+            "sample": [str(c) for c in df.columns],
             "group": group_labels,
             "missing_rate": miss,
             "z_score": z,
-            "flagged": np.abs(z) > z_threshold,
+            "evaluable": evaluable,
+            "flagged": flagged,
         }
     )
+
 
 def _classify_mechanism(df: pd.DataFrame, *, min_present: int = 3, alpha: float = 0.05) -> pd.DataFrame:
     """Per-feature MNAR / MAR classification via Mann-Whitney U.

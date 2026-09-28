@@ -305,8 +305,16 @@ missing_upset(
 
 ### What it shows
 Per-sample missingness rate compared to other samples in the same group,
-expressed as a z-score. Flags statistical outliers — samples whose missingness
-is unexpectedly high or low relative to group peers.
+expressed as a robust z-score. Flags samples whose missingness is unexpectedly
+high relative to group peers.
+
+> **Superseded method (2026-09).** This plan originally used a classic z-score
+> with `|z| > 2.5`. That cannot flag any sample in a group of eight or fewer,
+> because an outlier inflates the standard deviation it is measured against,
+> capping |z| at (n - 1) / sqrt(n). `qc()` now uses the robust scoring in
+> `stats._compute_sample_outliers`: median / MAD z-score above 3.5 **and** a
+> missing rate at least 0.10 above the group median, one-sided. Build
+> `sample_outlier_score()` on that, not on the sketch below.
 
 ### Why it matters
 Users currently do this manually in Excel: compute per-sample % missing, sort,
@@ -322,7 +330,8 @@ Nothing in `missingno` or any proteomics QC package does this.
 sample_outlier_score(
     df,                          # features x samples, NaN = missing
     group_level=None,            # MultiIndex level to compute z-scores within groups
-    threshold=2.5,               # flag samples with |z| > threshold
+    z_threshold=3.5,             # robust z-score cutoff (median / MAD)
+    min_delta=0.10,              # and at least this far above the group median
     title="Sample Missingness Outlier Score",
     save=None,
     dpi=150,
@@ -333,7 +342,7 @@ sample_outlier_score(
 - One point per sample, x = sample index (or run order), y = per-sample
   missingness rate
 - Points beyond threshold coloured red and labelled
-- Dashed horizontal lines at mean ± threshold×SD
+- Dashed horizontal line at the group median plus the flagging gap
 - If `group_level` set: compute z-scores within each group separately,
   colour points by group
 
