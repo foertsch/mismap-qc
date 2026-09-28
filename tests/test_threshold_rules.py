@@ -312,21 +312,56 @@ def test_runorder_slope_is_absolute():
     assert _result(report, "max_runorder_slope", 0.3).actual == pytest.approx(0.25)
 
 
-def test_mnar_is_undetectable_with_three_samples_on_each_side():
-    """Three present against three absent can never be classified MNAR.
+def _mechanism_of(sample_means, missing):
+    """Classify one feature. Constant columns make each sample's mean exact."""
+    df = pd.DataFrame(np.tile(np.array(sample_means, dtype=float), (2, 1)),
+                      index=["f", "other"],
+                      columns=[f"s{j}" for j in range(len(sample_means))])
+    df.loc["f", missing] = nan
+    return qc(df).feature_mechanism.set_index("feature").loc["f"]
 
-    Even perfectly separated, the smallest one-sided Mann-Whitney p-value for
-    3 vs 3 is 1 / C(6, 3) = 1/20 = 0.05, which does not pass p < 0.05. So a
-    feature missing in exactly the three lowest-abundance samples of six is
-    called MAR.
+
+def test_mnar_that_cannot_reach_significance_is_insufficient():
+    """Three detected against three missing cannot be called either way.
+
+    Even perfectly separated, the smallest one-sided Mann-Whitney p-value is
+    1 / C(6, 3) = 1/20 = 0.05, which fails p < 0.05. Calling that MAR would state
+    a conclusion the data cannot support, so it is INSUFFICIENT.
     """
-    values = np.array([10 + 10 * j for j in range(6)], dtype=float)
-    df = pd.DataFrame(np.tile(values, (2, 1)), index=["separated", "c"],
-                      columns=[f"s{j}" for j in range(6)])
-    df.loc["separated", ["s0", "s1", "s2"]] = nan
-    row = qc(df).feature_mechanism.set_index("feature").loc["separated"]
-    assert row["p_value"] == pytest.approx(1 / 20)
-    assert row["mechanism"] == "MAR"
+    row = _mechanism_of([10, 20, 30, 40, 50, 60], ["s0", "s1", "s2"])
+    assert row["mechanism"] == "INSUFFICIENT"
+    assert np.isnan(row["p_value"])
+
+
+def test_a_tie_cannot_sneak_past_the_exact_bound():
+    """One tied sample mean makes scipy switch to a normal approximation, which
+    reports p = 0.038 for three against three. The exact test cannot go below
+    0.05, so this was a false MNAR call. It is now INSUFFICIENT."""
+    row = _mechanism_of([10, 20, 30, 50, 50, 60], ["s0", "s1", "s2"])
+    assert row["mechanism"] == "INSUFFICIENT"
+
+
+def test_mnar_is_detected_once_significance_is_reachable():
+    """The guard must not block designs that can reach alpha. Four detected
+    against three missing: smallest p = 1 / C(7, 3) = 1/35 = 0.029."""
+    row = _mechanism_of([10, 20, 30, 40, 50, 60, 70], ["s0", "s1", "s2"])
+    assert row["mechanism"] == "MNAR"
+    assert row["p_value"] == pytest.approx(1 / 35)
+
+
+def test_stricter_alpha_marks_more_designs_insufficient():
+    """Four against four reaches 1/70 = 0.014: significant at alpha 0.05, but
+    unreachable at alpha 0.01, where it becomes INSUFFICIENT."""
+    import matplotlib.pyplot as plt
+
+    from mismap_qc import missing_mechanism
+
+    df = mechanism_data()  # 'mnar' is missing in 4 of 8, perfectly separated
+    _, at_05 = missing_mechanism(df, alpha=0.05)
+    _, at_01 = missing_mechanism(df, alpha=0.01)
+    plt.close("all")
+    assert at_05.set_index("feature").loc["mnar", "mechanism"] == "MNAR"
+    assert at_01.set_index("feature").loc["mnar", "mechanism"] == "INSUFFICIENT"
 
 
 def _rates_frame(rates, n_features=200):
