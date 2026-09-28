@@ -80,7 +80,7 @@ Close figures with `plt.close("all")` at the end of each test.
 2. Keep the change scoped to one concern. Separate concerns go in separate pull requests.
 3. Run `pytest`, `ruff check .` and `mypy` before pushing.
 4. Update `CHANGELOG.md` under the unreleased or upcoming version heading.
-5. Open the pull request against `main`. CI runs the test suite on every supported Python version across Ubuntu and macOS, along with lint, type checking, a documentation build and a run of the test suite from the built sdist. `.github/workflows/tests.yml` has the full list.
+5. Open the pull request against `main`. CI runs the test suite on every supported Python version across Ubuntu and macOS, along with lint, type checking, a documentation build, a run of the test suite from the built sdist, and a run against the newest release of every dependency instead of the locked versions. `.github/workflows/tests.yml` has the full list.
 
 Pull requests are squash-merged.
 

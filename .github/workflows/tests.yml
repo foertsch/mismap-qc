@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly, so a dependency release that breaks something shows up here even
+    # when no pull request is open. The test-latest job is the one that catches it.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -52,6 +57,34 @@ jobs:
           # A Codecov outage, or a pull request from a fork (which gets no
           # secrets), should not turn the build red. The tests still gate.
           fail_ci_if_error: false
+
+  test-latest:
+    # Every other job that installs dependencies takes them from uv.lock, so a
+    # new pandas, matplotlib or upsetplot release reaches users before it reaches
+    # CI. pandas 3 broke missing_upset() that way. This job ignores the lockfile
+    # and installs every runtime extra at its newest release, on the newest
+    # supported Python.
+    name: pytest (all extras, newest releases)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Show the resolved versions
+        run: >
+          uv run --isolated --no-project --python 3.14
+          --with ".[interactive,anndata,upset]"
+          python -c "import importlib.metadata as md;
+          print(*(f'{p} {md.version(p)}' for p in
+          ('numpy', 'pandas', 'scipy', 'matplotlib', 'plotly', 'anndata', 'upsetplot')), sep='\n')"
+
+      - name: Run tests
+        run: >
+          uv run --isolated --no-project --python 3.14
+          --with ".[interactive,anndata,upset]" --with pytest
+          python -m pytest tests/ -q -p no:cacheprovider
 
   lint:
     name: ruff
