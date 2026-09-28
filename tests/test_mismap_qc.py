@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from mismap_qc import (
     comissing_heatmap,
     completeness_bars,
+    completeness_violin,
     detection_waterfall,
     missing_matrix,
     missing_matrix_html,
@@ -263,6 +264,90 @@ def test_completeness_bars_save_to_disk(tmp_path: Path):
     out = tmp_path / "completeness.png"
     completeness_bars(make_multiindex_df(), group_level="Condition",
                       save=str(out))
+    assert out.exists()
+    assert out.stat().st_size > 0
+    plt.close("all")
+
+
+# ── completeness_violin ───────────────────────────────────────────────────────
+
+
+def test_completeness_violin_multiindex():
+    """Basic grouped call returns a matplotlib Figure."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_flat_df():
+    """Flat columns collapse to a single group without crashing."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_flat_df(), group_level=0)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_threshold():
+    """Threshold line is drawn without error."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition",
+                              threshold=0.7)
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_horizontal():
+    """Horizontal orientation works."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition",
+                              orientation="horizontal")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_level_features():
+    """level='features' summarises per-feature detection instead of per-sample."""
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(make_multiindex_df(), group_level="Condition",
+                              level="features")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_zero_variance():
+    """All-present groups have no KDE (ptp == 0); must skip the violin, not crash."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df().fillna(1.0)
+    fig = completeness_violin(df, group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_all_missing():
+    """All-missing input degenerates to zeros without crashing."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df()
+    df[:] = np.nan
+    fig = completeness_violin(df, group_level="Condition")
+    assert isinstance(fig, plt.Figure)
+    plt.close("all")
+
+
+def test_completeness_violin_save_to_disk(tmp_path: Path):
+    """Save parameter writes a PNG file."""
+    import matplotlib.pyplot as plt
+
+    out = tmp_path / "violin.png"
+    completeness_violin(make_multiindex_df(), group_level="Condition",
+                        save=str(out))
     assert out.exists()
     assert out.stat().st_size > 0
     plt.close("all")

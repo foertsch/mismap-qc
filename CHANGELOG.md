@@ -26,7 +26,35 @@ All notable changes to mismap-qc. Format roughly follows
 - **Python 3.14** in the CI test matrix and the trove classifiers. The suite passes
   on 3.14 both bare and with every optional extra installed.
 
+- **`completeness_violin()`**, a violin twin of `completeness_bars()` that shows the
+  distribution behind each group's mean completeness instead of a single bar. By
+  default each violin is the per-sample completeness within a group; `level="features"`
+  switches to per-feature detection rate. Overlays jittered points and a mean marker,
+  takes an optional `threshold` line and `orientation`, and supports `return_data=True`
+  with a long-format schema (`group`, `member`, `value`, `level`) registered in
+  `_RETURN_DATA_SCHEMAS`.
+
 ### Changed
+
+- **`missing_matrix()` layout.** The dendrogram is now bare (no "Distance" label,
+  distance ticks or left spine, following the clustermap convention). Annotation-strip
+  and below-matrix sparkline heights scale with the matrix so they stay legible on tall
+  matrices, the sparkline's y-ticks are pinned to `[0, 1]`, and the rotated sample
+  x-tick labels are drawn on the bottom-most panel (the sparkline when present, else the
+  matrix) so they never overlap the panel beneath them.
+
+- **`detection_waterfall()` threshold annotations.** Each threshold now drops a vertical
+  dashed line from the crossing point to the x-axis, so the surviving-feature count reads
+  straight off the axis. The annotation text changed from `"{n} {plural} ({pct}%) at
+  ≥{thresh}"` to `"{n} {plural} at ≥{thresh:.0%} detection"`, dropping the redundant
+  "% of total" parenthetical.
+
+- **`missing_runorder()` smoother.** When samples are grouped (`group_level` on a
+  MultiIndex) the rolling mean is now computed within each group and drawn as a separate
+  line per group, so it reflects within-session drift instead of averaging across group
+  boundaries. Ungrouped, the single smoother now breaks across large run-order gaps
+  (> 10x the median gap) rather than drawing a flat segment through empty acquisition
+  space.
 
 - **Sample outlier detection now uses a robust z-score. This changes results.**
   The previous check used a classic z-score (`|z| > 2.5`), which could not flag
@@ -96,6 +124,11 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Fixed
 
+- **Title and subtitle no longer overlap in `missing_runorder()` and
+  `detection_waterfall()`.** The subtitle was placed at a fixed axes-fraction offset
+  (`y=1.02`) that collided with the title band at some figure sizes. The title now pads
+  for the subtitle (`pad=24` when present) and the subtitle is offset in points from the
+  axes top, so the two never overlap regardless of figure size.
 - **`missing_mechanism()` no longer draws an empty MCAR bar.** Its bar chart had
   a category for MCAR that was always zero, because the classifier never
   separates MCAR from MAR. A bar that is always zero reads as "tested for MCAR

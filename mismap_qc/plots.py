@@ -224,13 +224,20 @@ def missing_matrix(
         figsize = (w, h)
 
     parts: list[tuple[str, float]] = []
+    matrix_h = max(6, n_genes * 0.08)
+    # keep each annotation strip tall enough to hold its own label: 0.4 is a
+    # sub-pixel sliver on tall matrices (label spills into the row above), so
+    # scale it with the matrix while preserving the old value for small data.
+    ann_h = max(0.4, matrix_h * 0.02)
     if show_dend:
         parts.append(("dend", 2.0))
     for lv in annotation_levels:
-        parts.append((f"ann_{lv}", 0.4))
-    parts.append(("matrix", max(6, n_genes * 0.08)))
+        parts.append((f"ann_{lv}", ann_h))
+    parts.append(("matrix", matrix_h))
     if show_spark and spark_below:
-        parts.append(("spark", 1.2))
+        # scale the completeness sparkline with the matrix so it stays readable
+        # on tall matrices (1.2 renders as a few px against ~150 matrix units)
+        parts.append(("spark", max(1.2, matrix_h * 0.045)))
 
     if "right" in legend_loc:
         gs_left, gs_right = 0.15, 0.82
@@ -277,10 +284,10 @@ def missing_matrix(
         )
         ax.set_xlim(-0.5, n_samples * 10 - 0.5)
         _clean_ax(ax)
-        ax.set_ylabel("Distance", fontsize=fs_ann, labelpad=8)
-        ax.tick_params(axis="y", labelsize=fs_legend)
-        ax.spines["left"].set_visible(True)
-        ax.spines["left"].set_color("#cccccc")
+        # bare dendrogram (clustermap convention): no axis label or distance
+        # ticks — they only crowd the "batch" strip on this thin row.
+        ax.set_yticks([])
+        ax.spines["left"].set_visible(False)
 
     # -- annotation strips --------------------------------------------------
     legend_handles: list[tuple[str, list[mpatches.Patch]]] = []
@@ -323,11 +330,14 @@ def missing_matrix(
             colors="white", linewidths=0.3,
         )
 
-    # X tick labels
+    # X tick labels — draw them on the lowest panel (the sparkline when it sits
+    # below, otherwise the matrix) so rotated labels never overlap the panel
+    # beneath them.
     sample_labels = (df.columns.get_level_values(label_level) if has_mi
                      else df.columns.astype(str))
+    labels_on_matrix = not (show_spark and spark_below)
     ax_mat.set_xticks(range(n_samples))
-    if n_samples <= 80:
+    if n_samples <= 80 and labels_on_matrix:
         ax_mat.set_xticklabels(sample_labels, rotation=90,
                                fontsize=fs_cols, ha="center")
         ax_mat.xaxis.tick_bottom()
@@ -359,9 +369,16 @@ def missing_matrix(
             ax_sp.set_ylim(0, 1.05)
             ax_sp.set_ylabel("Completeness", fontsize=fs_ann,
                              rotation=0, ha="right", va="center", labelpad=10)
-            ax_sp.set_xlabel("Samples", fontsize=fs_ann)
+            ax_sp.set_yticks([0, 1])
             ax_sp.tick_params(axis="y", labelsize=fs_legend)
-            ax_sp.tick_params(axis="x", labelbottom=False, length=0)
+            # sample labels live here (bottom-most panel), not on the matrix
+            ax_sp.set_xticks(range(n_samples))
+            if n_samples <= 80:
+                ax_sp.set_xticklabels(sample_labels, rotation=90,
+                                      fontsize=fs_cols, ha="center")
+            else:
+                ax_sp.set_xticklabels([])
+            ax_sp.tick_params(axis="x", length=0)
             ax_sp.spines["top"].set_visible(False)
             ax_sp.spines["right"].set_visible(False)
             ax_sp.spines["bottom"].set_visible(False)
@@ -1259,6 +1276,187 @@ def completeness_bars(
         return fig, _data_completeness_bars(df, group_level)
     return fig
 
+def completeness_violin(
+    df: pd.DataFrame,
+    group_level: int | str,
+    *,
+    level: str = "samples",
+    threshold: float | None = None,
+    color: str | dict | None = None,
+    orientation: str = "vertical",
+    show_points: bool = True,
+    title: str = "Per-Group Completeness",
+    fontsize: int = 10,
+    save: str | None = None,
+    dpi: int = 150,
+    return_data: bool = False,
+) -> plt.Figure | tuple[plt.Figure, pd.DataFrame]:
+    """
+    Violin plot of per-group detection completeness.
+
+    Where :func:`completeness_bars` draws a single mean per group, this shows the
+    full distribution behind that mean. By default each violin is the per-sample
+    completeness (fraction of features detected in each sample) within a group,
+    so variable or outlier runs are visible, not just the average. Set
+    ``level="features"`` to instead show each feature's detection rate across the
+    group.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Features (rows) x Samples (columns). NaN = missing / not detected.
+        Columns may be a MultiIndex; use ``group_level`` to select the grouping.
+    group_level : int or str
+        Column level (index or name) to group samples by. Flat columns are
+        treated as a single group.
+    level : "samples" or "features"
+        What each violin summarises: the completeness of each sample in the group
+        (default) or the detection rate of each feature across the group.
+    threshold : float or None
+        Draw a dashed red line at this completeness value (0-1).
+    color : str, dict, or None
+        Single colour, ``{group: hex}`` dict, or the built-in palette (None).
+    orientation : "vertical" or "horizontal"
+        Violin orientation. Vertical (default) reads well for a few groups.
+    show_points : bool
+        Overlay the individual values as jittered points. Default True.
+    title : str
+        Figure title.
+    fontsize : int
+        Base font size (default 10).
+    save : str or None
+        Save figure to this path if set.
+    dpi : int
+        Save resolution (default 150).
+    return_data : bool
+        If True, also return the long-format tidy frame behind the plot as a
+        ``(Figure, DataFrame)`` tuple. Default False.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The violin figure. When ``return_data=True``, a
+        ``(Figure, pandas.DataFrame)`` tuple whose frame has one row per
+        (group, member) value.
+
+    Examples
+    --------
+    >>> fig = completeness_violin(df, "Condition")
+    >>> fig = completeness_violin(df, "Condition", level="features", threshold=0.5)
+    >>> fig, table = completeness_violin(df, "Condition", return_data=True)
+"""
+    has_mi = isinstance(df.columns, pd.MultiIndex)
+
+    # Resolve groups (same convention as completeness_bars)
+    if has_mi:
+        if isinstance(group_level, str):
+            grp_lv = list(df.columns.names).index(group_level)
+        else:
+            grp_lv = group_level
+        labels = np.array(df.columns.get_level_values(grp_lv))
+    else:
+        labels = np.array(["All samples"] * len(df.columns))
+    groups = list(dict.fromkeys(labels))
+
+    # Distribution behind each group's mean completeness
+    dist: dict = {}
+    for grp in groups:
+        sub = df.loc[:, labels == grp]
+        axis = 1 if level == "features" else 0
+        dist[grp] = np.asarray(sub.notna().mean(axis=axis).values, dtype=float)
+
+    # Order groups by median completeness (descending) for a stable read
+    groups_sorted = sorted(groups, key=lambda g: np.median(dist[g]), reverse=True)
+    data = [dist[g] for g in groups_sorted]
+
+    # Colours (same resolution as completeness_bars)
+    if isinstance(color, dict):
+        colours = [color.get(g, "#4C72B0") for g in groups_sorted]
+    elif isinstance(color, str):
+        colours = [color] * len(groups_sorted)
+    else:
+        _, cmap = _assign_colors(np.array(groups_sorted), 0)
+        colours = [cmap[g] for g in groups_sorted]
+
+    n_groups = len(groups_sorted)
+    vert = orientation == "vertical"
+    figsize = ((max(4, n_groups * 1.4 + 1), 5) if vert
+               else (7, max(3, n_groups * 0.9 + 1)))
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+    positions = np.arange(n_groups)
+
+    # Violin bodies — skip degenerate groups (a KDE needs >=2 distinct values)
+    vp_data = [(i, d) for i, d in enumerate(data)
+               if d.size >= 2 and np.ptp(d) > 0]
+    if vp_data:
+        # matplotlib stubs type the return values as a single Collection rather
+        # than the iterable of body artists it is at runtime; annotate as dict so
+        # indexing/iteration type-checks.
+        parts: dict = ax.violinplot([d for _, d in vp_data],
+                              positions=[positions[i] for i, _ in vp_data],
+                              vert=vert, widths=0.7, showmeans=False,
+                              showmedians=False, showextrema=False)
+        for body, (i, _) in zip(parts["bodies"], vp_data):
+            body.set_facecolor(colours[i])
+            body.set_edgecolor("#666666")
+            body.set_alpha(0.35)
+
+    rng = np.random.default_rng(0)
+    for i, d in enumerate(data):
+        jit = (rng.random(d.size) - 0.5) * 0.12
+        if show_points:
+            px, py = (positions[i] + jit, d) if vert else (d, positions[i] + jit)
+            ax.scatter(px, py, s=18, color=colours[i], alpha=0.8,
+                       edgecolors="white", linewidths=0.4, zorder=3)
+        # mean marker + label
+        m = float(np.mean(d))
+        if vert:
+            ax.plot([positions[i] - 0.25, positions[i] + 0.25], [m, m],
+                    color="#222222", linewidth=2, zorder=4)
+            ax.text(positions[i] + 0.30, m, f"{m:.1%}", va="center", ha="left",
+                    fontsize=fontsize - 1)
+        else:
+            ax.plot([m, m], [positions[i] - 0.25, positions[i] + 0.25],
+                    color="#222222", linewidth=2, zorder=4)
+            ax.text(m, positions[i] + 0.30, f"{m:.1%}", va="bottom", ha="center",
+                    fontsize=fontsize - 1)
+
+    pct = mpl.ticker.PercentFormatter(xmax=1)
+    if vert:
+        ax.set_xticks(positions)
+        ax.set_xticklabels(groups_sorted, fontsize=fontsize)
+        ax.set_ylabel("Completeness", fontsize=fontsize)
+        ax.set_ylim(0, 1.05)
+        ax.yaxis.set_major_formatter(pct)
+        if threshold is not None:
+            ax.axhline(threshold, color="#CC4444", linestyle="--", linewidth=1.2,
+                       alpha=0.9, label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+    else:
+        ax.set_yticks(positions)
+        ax.set_yticklabels(groups_sorted, fontsize=fontsize)
+        ax.set_xlabel("Completeness", fontsize=fontsize)
+        ax.set_xlim(0, 1.05)
+        ax.xaxis.set_major_formatter(pct)
+        if threshold is not None:
+            ax.axvline(threshold, color="#CC4444", linestyle="--", linewidth=1.2,
+                       alpha=0.9, label=f"{threshold:.0%} threshold")
+            ax.legend(fontsize=fontsize - 1)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    if title:
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+
+    fig.tight_layout()
+    if save:
+        fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")
+
+    if return_data:
+        return fig, _data_completeness_violin(df, group_level, level=level)
+    return fig
+
 def detection_waterfall(
     df: pd.DataFrame,
     thresholds: list[float] | None = None,
@@ -1361,16 +1559,18 @@ def detection_waterfall(
     # Draw threshold lines with annotations
     n_features = len(df)
     for thresh in sorted(thresholds, reverse=True):
-        ax.axhline(thresh, color="#CC4444", linestyle="--", linewidth=1, alpha=0.8)
-
-        # Count features at or above this threshold
+        # Count features at or above this detection threshold. Because the curve
+        # is ranked by detection rate, it crosses y=thresh at exactly x=n_above,
+        # so a vertical dashed line there reads the count straight off the x-axis.
         n_above = int((df.notna().mean(axis=1) >= thresh).sum())
-        pct = n_above / n_features * 100
+        ax.axhline(thresh, color="#CC4444", linestyle="--", linewidth=1, alpha=0.8)
+        ax.plot([n_above, n_above], [0, thresh], color="#CC4444",
+                linestyle="--", linewidth=1, alpha=0.8)
 
-        # Position annotation at right edge
+        # Annotation at the right edge (detection-rate cutoff; no % of total).
         ax.text(
             n_features * 0.98, thresh + 0.02,
-            f"{n_above:,} {fl['plural']} ({pct:.0f}%) at ≥{thresh:.0%}",
+            f"{n_above:,} {fl['plural']} at ≥{thresh:.0%} detection",
             ha="right", va="bottom", fontsize=fontsize - 1, color="#CC4444"
         )
 
@@ -1389,13 +1589,16 @@ def detection_waterfall(
     if group_level is not None and has_mi:
         ax.legend(fontsize=fontsize - 1, loc="lower left")
 
-    # Title and subtitle
+    # Title and subtitle (stacked in the top margin; point-based offsets so the
+    # two never overlap regardless of figure size)
     if title:
-        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold",
+                     pad=24 if subtitle else 10)
     if subtitle:
-        ax.text(
-            0.5, 1.02, subtitle,
-            transform=ax.transAxes, ha="center", va="bottom",
+        ax.annotate(
+            subtitle, xy=(0.5, 1.0), xycoords="axes fraction",
+            xytext=(0, 5), textcoords="offset points",
+            ha="center", va="bottom",
             fontsize=fontsize - 1, fontstyle="italic", color="#666666"
         )
 
@@ -1482,7 +1685,10 @@ def missing_runorder(
     fig, ax = plt.subplots(figsize=figsize, facecolor="white")
 
     # Plot points, optionally coloured by group
-    if group_level is not None and has_mi:
+    grouped = group_level is not None and has_mi
+    labels: np.ndarray | None = None
+    groups: list | None = None
+    if grouped and group_level is not None:
         if isinstance(group_level, str):
             grp_lv = list(df.columns.names).index(group_level)
         else:
@@ -1500,16 +1706,43 @@ def missing_runorder(
         ax.scatter(x, missing_rate, c="#2d2d2d", s=40, alpha=0.7,
                    edgecolors="white", linewidths=0.5)
 
-    # Smoother line (rolling mean)
+    # Smoother line (rolling mean). When grouped (e.g. by batch) the smoother is
+    # computed WITHIN each group, so it reflects within-session drift and lifts
+    # cleanly across group boundaries instead of averaging two separate sessions
+    # together. Ungrouped, it spans everything but breaks across large gaps.
     if smooth and n_samples >= smooth_window:
-        sorted_idx = np.argsort(x)
-        x_sorted = x[sorted_idx]
-        y_sorted = missing_rate[sorted_idx]
-        y_smooth = pd.Series(y_sorted).rolling(
-            window=smooth_window, center=True, min_periods=1
-        ).mean().values
-        ax.plot(x_sorted, y_smooth, color="#CC4444", linewidth=2, alpha=0.8,
-                label=f"Rolling mean (n={smooth_window})")
+        def _roll(vals):
+            return pd.Series(vals).rolling(
+                window=smooth_window, center=True, min_periods=1).mean().values
+
+        if grouped and labels is not None and groups is not None:
+            first = True
+            for grp in groups:
+                m = labels == grp
+                if m.sum() < 2:
+                    continue
+                si = np.argsort(x[m])
+                ax.plot(x[m][si], _roll(missing_rate[m][si]),
+                        color="#CC4444", linewidth=2, alpha=0.8,
+                        label=f"Rolling mean (n={smooth_window})" if first else None)
+                first = False
+        else:
+            sorted_idx = np.argsort(x)
+            x_plot = x[sorted_idx].astype(float)
+            y_plot = _roll(missing_rate[sorted_idx]).astype(float)
+            # break across large acquisition gaps so the line doesn't draw a
+            # misleading flat segment through empty run-order space
+            if x_plot.size > 2:
+                gaps = np.diff(x_plot)
+                pos = gaps[gaps > 0]
+                med_gap = np.median(pos) if pos.size else 0.0
+                if med_gap > 0:
+                    breaks = np.where(gaps > 10 * med_gap)[0]
+                    if breaks.size:
+                        x_plot = np.insert(x_plot, breaks + 1, np.nan)
+                        y_plot = np.insert(y_plot, breaks + 1, np.nan)
+            ax.plot(x_plot, y_plot, color="#CC4444", linewidth=2, alpha=0.8,
+                    label=f"Rolling mean (n={smooth_window})")
 
     # Dataset mean line
     mean_missing = missing_rate.mean()
@@ -1530,13 +1763,16 @@ def missing_runorder(
     # Legend
     ax.legend(fontsize=fontsize - 1, loc="upper right")
 
-    # Title and subtitle
+    # Title and subtitle (stacked in the top margin; point-based offsets so the
+    # two never overlap regardless of figure size)
     if title:
-        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold", pad=10)
+        ax.set_title(title, fontsize=fontsize + 2, fontweight="bold",
+                     pad=24 if subtitle else 10)
     if subtitle:
-        ax.text(
-            0.5, 1.02, subtitle,
-            transform=ax.transAxes, ha="center", va="bottom",
+        ax.annotate(
+            subtitle, xy=(0.5, 1.0), xycoords="axes fraction",
+            xytext=(0, 5), textcoords="offset points",
+            ha="center", va="bottom",
             fontsize=fontsize - 1, fontstyle="italic", color="#666666"
         )
 
@@ -2046,6 +2282,26 @@ def _data_completeness_bars(df: pd.DataFrame, group_level) -> pd.DataFrame:
         rows.append((g, comp, int(mask.sum())))
     return pd.DataFrame(rows, columns=["group", "completeness", "n_samples"])
 
+def _data_completeness_violin(df: pd.DataFrame, group_level, *, level: str = "samples") -> pd.DataFrame:
+    """Long-form schema: columns [group, member, value, level]. One row per
+    (group, member): a sample's completeness (level="samples") or a feature's
+    detection rate (level="features") within the group."""
+    if isinstance(df.columns, pd.MultiIndex):
+        if isinstance(group_level, str):
+            gl = list(df.columns.names).index(group_level)
+        else:
+            gl = group_level
+        labels = np.array(df.columns.get_level_values(gl))
+    else:
+        labels = np.array(["all_samples"] * df.shape[1])
+    rows = []
+    for g in dict.fromkeys(labels):
+        sub = df.loc[:, labels == g]
+        vals = sub.notna().mean(axis=1) if level == "features" else sub.notna().mean(axis=0)
+        for member, value in zip(vals.index, np.asarray(vals.values, dtype=float)):
+            rows.append((g, str(member), float(value), level))
+    return pd.DataFrame(rows, columns=["group", "member", "value", "level"])
+
 def _data_detection_waterfall(df: pd.DataFrame) -> pd.DataFrame:
     """Schema: columns [feature, detection_rate, rank]."""
     rates = df.notna().mean(axis=1).sort_values(ascending=False)
@@ -2118,6 +2374,7 @@ def _data_missing_upset(
 _RETURN_DATA_SCHEMAS = {
     "missing_matrix": ["feature", "sample", "missing"],
     "completeness_bars": ["group", "completeness", "n_samples"],
+    "completeness_violin": ["group", "member", "value", "level"],
     "detection_waterfall": ["feature", "detection_rate", "rank"],
     "missing_runorder": ["sample", "run_order", "missing_rate", "group"],
     "comissing_heatmap": ["feature_a", "feature_b", "comissingness"],
