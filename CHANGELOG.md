@@ -4,7 +4,17 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-09-28
+
+Two checks now give different results on the same data: sample outlier
+detection and the missingness mechanism classifier. Both were wrong on small
+designs, and both are described under Changed, along with a new default for
+the smoother in `missing_runorder()`. Read that section before upgrading if you
+have thresholds tuned against 0.3.x. New in this release: `completeness_violin()`.
+
+```bash
+pip install --upgrade mismap-qc
+```
 
 ### Added
 
