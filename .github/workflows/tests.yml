@@ -37,8 +37,21 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Run tests with all extras
-        run: uv run --python 3.12 --all-extras --with pytest python -m pytest tests/ -q
+      - name: Run tests with all extras, measuring coverage
+        # Coverage is measured here rather than in the matrix because this is the
+        # only job that installs every extra, so it is the only one that reaches
+        # the plotly, anndata and upsetplot code paths.
+        run: uv run --python 3.12 --all-extras --with pytest --with pytest-cov python -m pytest tests/ -q --cov=mismap_qc --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          disable_search: true
+          # A Codecov outage, or a pull request from a fork (which gets no
+          # secrets), should not turn the build red. The tests still gate.
+          fail_ci_if_error: false
 
   lint:
     name: ruff

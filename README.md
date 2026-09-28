@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/pypi/l/mismap-qc.svg)](LICENSE)
 [![Tests](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml/badge.svg)](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml)
 [![Docs](https://github.com/foertsch/mismap-qc/actions/workflows/docs-deploy.yml/badge.svg)](https://foertsch.github.io/mismap-qc/)
+[![codecov](https://codecov.io/gh/foertsch/mismap-qc/graph/badge.svg)](https://codecov.io/gh/foertsch/mismap-qc)
 [![Views](https://hits.sh/github.com/foertsch/mismap-qc.svg?label=views)](https://hits.sh/github.com/foertsch/mismap-qc/)
 
 Missing-data validation for proteomics and RNA-Seq experiments. Detects outlier

@@ -35,7 +35,7 @@ dependencies = [
 interactive = ["plotly"]
 anndata = ["anndata"]
 upset = ["upsetplot"]
-dev = ["pytest", "ruff", "mypy", "plotly", "anndata", "upsetplot"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "plotly", "anndata", "upsetplot"]
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
@@ -89,3 +89,6 @@ files = ["mismap_qc"]
 # pandas, matplotlib, scipy and the optional deps ship incomplete or no stubs;
 # without this every import of them is an error that says nothing about our code.
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["mismap_qc"]
