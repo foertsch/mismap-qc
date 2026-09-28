@@ -6,6 +6,15 @@ All notable changes to mismap-qc. Format roughly follows
 
 ## [Unreleased]
 
+### Added
+
+- **A CI job that tests against the newest dependency releases.** Every other
+  job takes its dependencies from `uv.lock`, so a new pandas, matplotlib or
+  upsetplot release reached users before it reached CI; pandas 3 broke
+  `missing_upset()` that way unnoticed. The new job ignores the lockfile, installs
+  every runtime extra at its newest release on the newest supported Python, and
+  prints the versions it resolved. The workflow also runs weekly, so a breaking
+  release shows up even when no pull request is open.
 ### Fixed
 
 - **`missing_upset()` crashed on pandas 3** with `ValueError: Invalid RGBA
