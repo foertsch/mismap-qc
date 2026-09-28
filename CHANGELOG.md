@@ -72,6 +72,15 @@ All notable changes to mismap-qc. Format roughly follows
   classifier has never produced it: "MAR" means no evidence of
   abundance-dependent dropout and covers both. Corrected.
 
+### Deprecated
+
+- **`min_sample_completeness_per_group`**, to be removed in a future release.
+  It always returns the same value as `min_sample_completeness`: the lowest
+  completeness among each group's lowest is the lowest overall. Use
+  `min_sample_completeness` instead. The rule keeps working and returning its
+  existing value until then, so no thresholds change meaning, and using it
+  emits a `DeprecationWarning`.
+
 ### Fixed
 
 - **Return-type annotations on the six `return_data` plot functions.** They were
