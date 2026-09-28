@@ -382,6 +382,74 @@ def test_completeness_violin_orders_groups_like_completeness_bars():
     plt.close("all")
 
 
+def test_completeness_violin_integer_group_level():
+    """A level index works like its name, in the plot and in return_data."""
+    import matplotlib.pyplot as plt
+
+    fig_i, data_i = completeness_violin(_violin_df(), group_level=0, return_data=True)
+    fig_n, data_n = completeness_violin(_violin_df(), group_level="Condition",
+                                        return_data=True)
+    assert ([t.get_text() for t in fig_i.axes[0].get_xticklabels()]
+            == [t.get_text() for t in fig_n.axes[0].get_xticklabels()])
+    pd.testing.assert_frame_equal(data_i, data_n)
+    plt.close("all")
+
+
+def test_completeness_violin_flat_return_data():
+    """Flat columns are one group, keyed "all_samples" as in completeness_bars."""
+    import matplotlib.pyplot as plt
+
+    _, data = completeness_violin(make_flat_df(), group_level=0, return_data=True)
+    assert set(data["group"]) == {"all_samples"}
+    assert len(data) == 10
+    plt.close("all")
+
+
+@pytest.mark.parametrize("color, expected", [
+    ("#123456", {"A": "#123456", "B": "#123456"}),
+    ({"A": "#aa0000"}, {"A": "#aa0000", "B": "#4c72b0"}),  # unlisted -> default
+])
+def test_completeness_violin_colours(color, expected):
+    """A single colour applies to every group; a dict maps groups and falls back
+    to the default blue, as in completeness_bars."""
+    from matplotlib.colors import to_hex
+
+    import matplotlib.pyplot as plt
+
+    fig = completeness_violin(_violin_df(), group_level="Condition", color=color)
+    # scatter layers are drawn in group order: A, then B
+    got = [to_hex(c.get_facecolor()[0]) for c in _scatter_points(fig.axes[0])]
+    assert got == [expected["A"], expected["B"]]
+    plt.close("all")
+
+
+def test_completeness_violin_falls_back_to_vert_on_old_matplotlib(monkeypatch):
+    """Before matplotlib 3.10 violinplot has no orientation= and takes vert=."""
+    import inspect
+    import warnings
+
+    import matplotlib.pyplot as plt
+    from matplotlib.axes import Axes
+
+    import mismap_qc.plots as plots
+
+    calls = []
+    original = Axes.violinplot
+
+    def recording(self, *args, **kwargs):
+        calls.append(kwargs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", PendingDeprecationWarning)
+            return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "violinplot", recording)
+    monkeypatch.setattr(plots.inspect, "signature", lambda f: inspect.Signature())
+    completeness_violin(_violin_df(), group_level="Condition", orientation="horizontal")
+    assert len(calls) == 1
+    assert calls[0].get("vert") is False and "orientation" not in calls[0]
+    plt.close("all")
+
+
 def test_completeness_violin_threshold():
     """The threshold is a horizontal line when vertical."""
     import matplotlib.pyplot as plt
