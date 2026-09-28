@@ -21,15 +21,16 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-The `dev` extra pulls in `pytest`, `ruff`, `plotly`, and `anndata`. `plotly` is needed for `missing_matrix_html()` and `anndata` for `from_anndata()`; both are optional at runtime, and their tests skip when absent.
+The `dev` extra pulls in the test, lint and type-check tools plus every optional runtime dependency; `pyproject.toml` has the list. The optional ones (`plotly` for `missing_matrix_html()`, `anndata` for `from_anndata()`, `upsetplot` for `missing_upset()`) are not needed at runtime, and their tests skip when absent.
 
 ## Running the checks
 
-Both of these run in CI and both must pass:
+All three run in CI and all three must pass:
 
 ```bash
 pytest tests/ -q
 ruff check .
+mypy
 ```
 
 Ruff is pinned to 0.16.0 in the workflow, and the enabled rules are declared explicitly in `pyproject.toml` under `[tool.ruff.lint]`. This is deliberate. Ruff's default rule set widened in 0.16 and turned a green build into 45 errors without a line of code changing. If you want to widen the selection, do it as its own pull request with the resulting fixes, not as a side effect of another change.
@@ -77,9 +78,9 @@ Close figures with `plt.close("all")` at the end of each test.
 
 1. Branch off `main`.
 2. Keep the change scoped to one concern. Separate concerns go in separate pull requests.
-3. Run `pytest` and `ruff check .` before pushing.
+3. Run `pytest`, `ruff check .` and `mypy` before pushing.
 4. Update `CHANGELOG.md` under the unreleased or upcoming version heading.
-5. Open the pull request against `main`. CI runs pytest on Python 3.10 to 3.13 across Ubuntu and macOS, plus the ruff job.
+5. Open the pull request against `main`. CI runs the test suite on every supported Python version across Ubuntu and macOS, along with lint, type checking, a documentation build and a run of the test suite from the built sdist. `.github/workflows/tests.yml` has the full list.
 
 Pull requests are squash-merged.
 
@@ -104,7 +105,7 @@ Maintainer only:
 3. Merge, then tag `vX.Y.Z` and create the GitHub release.
 4. `uv build`, then `uv run --with twine twine upload dist/mismap_qc-<version>*` from the repository root. `uv publish` does not read `~/.pypirc`, so twine is the path that works with a credential stored there.
 
-The sdist contents are an explicit allowlist in `[tool.hatch.build.targets.sdist]`. Anything new that has to ship in the source distribution must be added there, otherwise it is silently left out.
+The sdist contents are an explicit allowlist in `[tool.hatch.build.targets.sdist]`. Anything new that has to ship in the source distribution must be added there, otherwise it is silently left out. The `sdist` CI job catches this for anything the test suite needs, but not for other files.
 
 ## Reporting bugs
 

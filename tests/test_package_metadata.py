@@ -111,4 +111,4 @@ def test_classifiers_cover_supported_pythons(project):
         for c in project["classifiers"]
         if c.startswith("Programming Language :: Python :: 3.")
     }
-    assert {"3.10", "3.11", "3.12", "3.13"} <= declared
+    assert {"3.10", "3.11", "3.12", "3.13", "3.14"} <= declared

@@ -25,7 +25,7 @@ The tool was used agentically, not as line completion. It reads the repository, 
 
 The author read the diffs before merging, uses mismap-qc on real proteomics datasets at the Functional Genomics Center Zurich, and owns the statistical choices above. Agent proposals were declined on disagreement: `upsetplot` was taken as an optional dependency instead of hand-rolling the UpSet layout, and a proposed script that would have inflated this repository's view-count badge was refused.
 
-Correctness is checked by the test suite on Python 3.10 through 3.13 across Linux and macOS, a ruff lint job, and a strict documentation build that fails on an unparseable docstring. Every example in the public docstrings is executed as part of that suite.
+Correctness is checked by the test suite on every supported Python version across Linux and macOS, alongside lint, type checking, and a strict documentation build that fails on an unparseable docstring. Every example in the public docstrings is executed as part of that suite.
 
 ## Commit trailers
 
