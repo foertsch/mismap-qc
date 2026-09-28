@@ -117,6 +117,23 @@ All notable changes to mismap-qc. Format roughly follows
 - The contributing guide and the generative AI disclosure no longer hardcode the
   supported Python range, which went stale when 3.14 was added. Both now point at
   the source of truth instead.
+- **Subtitles no longer print over the title** in `detection_waterfall()` and
+  `missing_runorder()`. The subtitle was placed at a fraction of the axes height
+  and the title at a fixed point offset, so the two landed in the same band. Both
+  now use point offsets and stack at any figure size.
+- **`missing_matrix()` stays readable on tall matrices.** On a matrix of about
+  2,000 features the annotation strips and the completeness sparkline had fixed
+  heights and shrank to a few pixels, and the rotated sample labels ran into the
+  sparkline below the matrix. The strips and sparkline now grow with the matrix
+  (small matrices keep their old sizes), the sample labels go on the bottom
+  panel, and the dendrogram drops its distance axis, whose ticks collided with the
+  first annotation strip.
+- **`detection_waterfall()` threshold labels.** Each threshold now drops a dashed
+  line to its feature count on the x-axis, and the label reads
+  "1,377 proteins at ≥50% detection" without the percentage of the total. The
+  droplines are drawn only for the single pooled curve: with `group_level`, each
+  group's curve crosses the threshold somewhere else, and the pooled count would
+  mark a point on none of them.
 
 ## [0.3.1] - 2026-08-11
 
