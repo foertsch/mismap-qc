@@ -20,9 +20,9 @@ import pandas as pd
 import pytest
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
-import mismap_qc  # noqa: E402
+import mismap_qc
 
 # Functions whose examples need an optional dependency, and the module to skip on.
 _OPTIONAL = {
@@ -76,7 +76,7 @@ def _example_df() -> pd.DataFrame:
 
 def _extract_examples(func) -> list[str]:
     doc = func.__doc__ or ""
-    match = re.search(r"Examples\s*\n\s*-+\s*\n(.*?)(?:\n\s*\n|\Z)", doc, re.S)
+    match = re.search(r"Examples\s*\n\s*-+\s*\n(.*?)(?:\n\s*\n|\Z)", doc, re.DOTALL)
     if not match:
         return []
     return [
@@ -121,7 +121,7 @@ def test_docstring_examples_run(name):
     for line in _extract_examples(getattr(mismap_qc, name)):
         try:
             exec(compile(line, f"<{name} example>", "single"), ns)  # noqa: S102
-        except Exception as exc:  # pragma: no cover - failure path is the point
+        except Exception as exc:  # noqa: BLE001  # pragma: no cover - any failure should fail the test, with context
             pytest.fail(f"example failed for {name}:\n    >>> {line}\n  {exc!r}")
         finally:
             plt.close("all")

@@ -22,7 +22,6 @@ from mismap_qc import (
     missing_runorder,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -431,8 +430,8 @@ def test_completeness_violin_level_features():
     """level="features" gives each feature's detection rate within the group."""
     import matplotlib.pyplot as plt
 
-    fig, data = completeness_violin(_violin_df(), group_level="Condition",
-                                    level="features", return_data=True)
+    _fig, data = completeness_violin(_violin_df(), group_level="Condition",
+                                     level="features", return_data=True)
     b = data[data["group"] == "B"].set_index("member")["value"]
     # every feature is missing in exactly one of B's two samples
     assert (b == 0.5).all() and len(b) == 10
@@ -492,9 +491,8 @@ def test_completeness_violin_flat_return_data():
 def test_completeness_violin_colours(color, expected):
     """A single colour applies to every group; a dict maps groups and falls back
     to the default blue, as in completeness_bars."""
-    from matplotlib.colors import to_hex
-
     import matplotlib.pyplot as plt
+    from matplotlib.colors import to_hex
 
     fig = completeness_violin(_violin_df(), group_level="Condition", color=color)
     # scatter layers are drawn in group order: A, then B

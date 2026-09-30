@@ -17,7 +17,7 @@ import pytest
 matplotlib.use("Agg")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mismap_qc import (  # noqa: E402
+from mismap_qc import (
     _RETURN_DATA_SCHEMAS,
     comissing_heatmap,
     completeness_bars,

@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mismap_qc import estimate_lod  # noqa: E402
+from mismap_qc import estimate_lod
 
 
 def _df(rows):

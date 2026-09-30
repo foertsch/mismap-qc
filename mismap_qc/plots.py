@@ -8,16 +8,16 @@ from contextlib import contextmanager
 from typing import cast
 
 import matplotlib as mpl
-import matplotlib.gridspec as gridspec  # noqa: F401  (used by some legacy plots)
-import matplotlib.patches as mpatches  # noqa: F401
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib import gridspec
 from scipy.cluster import hierarchy
 
 from ._core import (
-    FEATURE_TYPES,  # noqa: F401
     _PALETTES,  # noqa: F401
+    FEATURE_TYPES,  # noqa: F401
     _assign_colors,
     _clean_ax,
     _get_feature_labels,
@@ -482,7 +482,7 @@ def missing_matrix(
                 mask = labels == group
                 grp_comp = z[:, mask].sum() / (n_genes * mask.sum()) if mask.any() else 0
                 n_samp = mask.sum()
-                print(f"  {str(group):14s} {grp_comp:>5.0%}  (n={n_samp})")
+                print(f"  {group!s:14s} {grp_comp:>5.0%}  (n={n_samp})")
             print()
 
     if save:
@@ -796,7 +796,7 @@ def missing_matrix_html(
 
         fig.update_yaxes(
             title_text=level_names[idx] if idx < len(level_names) else "",
-            title_font=dict(size=11),
+            title_font={"size": 11},
             showticklabels=False, row=idx + 1, col=1,
         )
 
@@ -817,7 +817,7 @@ def missing_matrix_html(
 
     fig.update_yaxes(
         autorange="reversed",
-        tickfont=dict(size=max(6, min(10, int(400 / n_genes)))),
+        tickfont={"size": max(6, min(10, int(400 / n_genes)))},
         row=matrix_row, col=1,
     )
 
@@ -833,7 +833,7 @@ def missing_matrix_html(
             y=comp,
             fill="tozeroy",
             fillcolor="rgba(45,45,45,0.25)",
-            line=dict(color=color_present, width=1.2),
+            line={"color": color_present, "width": 1.2},
             hovertext=[f"<b>{sample_labels[i]}</b>: {comp[i]:.1%}" for i in range(n_samples)],
             hoverinfo="text",
             showlegend=False,
@@ -842,18 +842,18 @@ def missing_matrix_html(
         if completeness_threshold is not None:
             fig.add_hline(
                 y=completeness_threshold, row=spark_row, col=1,
-                line=dict(color="#CC4444", width=1.5, dash="dash"),
+                line={"color": "#CC4444", "width": 1.5, "dash": "dash"},
             )
 
         fig.update_yaxes(
-            title_text="Completeness", title_font=dict(size=11),
+            title_text="Completeness", title_font={"size": 11},
             range=[0, 1.05], tickformat=".0%",
             row=spark_row, col=1,
         )
         fig.update_xaxes(
             range=[-0.5, n_samples - 0.5],
             showticklabels=False,
-            title_text="Samples", title_font=dict(size=11),
+            title_text="Samples", title_font={"size": 11},
             row=spark_row, col=1,
         )
 
@@ -867,34 +867,34 @@ def missing_matrix_html(
         lname = level_names[idx] if idx < len(level_names) else ""
 
         # Title
-        legend_annotations.append(dict(
-            x=1.02, y=y_legend, xref="paper", yref="paper",
-            text=f"<b>{lname}</b>", showarrow=False,
-            font=dict(size=11), xanchor="left",
-        ))
+        legend_annotations.append({
+            "x": 1.02, "y": y_legend, "xref": "paper", "yref": "paper",
+            "text": f"<b>{lname}</b>", "showarrow": False,
+            "font": {"size": 11}, "xanchor": "left",
+        })
         y_legend -= 0.025
 
         for label, color in cmap.items():
-            legend_annotations.append(dict(
-                x=1.02, y=y_legend, xref="paper", yref="paper",
-                text=f'<span style="color:{color};">\u25a0</span> {label}',
-                showarrow=False, font=dict(size=10), xanchor="left",
-            ))
+            legend_annotations.append({
+                "x": 1.02, "y": y_legend, "xref": "paper", "yref": "paper",
+                "text": f'<span style="color:{color};">\u25a0</span> {label}',
+                "showarrow": False, "font": {"size": 10}, "xanchor": "left",
+            })
             y_legend -= 0.022
         y_legend -= 0.015
 
     # Detected / Missing legend
-    legend_annotations.append(dict(
-        x=1.02, y=y_legend, xref="paper", yref="paper",
-        text=f'<span style="color:{color_present};">\u25a0</span> Detected',
-        showarrow=False, font=dict(size=10), xanchor="left",
-    ))
+    legend_annotations.append({
+        "x": 1.02, "y": y_legend, "xref": "paper", "yref": "paper",
+        "text": f'<span style="color:{color_present};">\u25a0</span> Detected',
+        "showarrow": False, "font": {"size": 10}, "xanchor": "left",
+    })
     y_legend -= 0.022
-    legend_annotations.append(dict(
-        x=1.02, y=y_legend, xref="paper", yref="paper",
-        text=f'<span style="color:{color_missing};">\u25a0</span> Missing',
-        showarrow=False, font=dict(size=10), xanchor="left",
-    ))
+    legend_annotations.append({
+        "x": 1.02, "y": y_legend, "xref": "paper", "yref": "paper",
+        "text": f'<span style="color:{color_missing};">\u25a0</span> Missing',
+        "showarrow": False, "font": {"size": 10}, "xanchor": "left",
+    })
 
     # -- title + subtitle ---------------------------------------------------
     title_text = f"<b>{title}</b>"
@@ -903,13 +903,13 @@ def missing_matrix_html(
 
     # -- layout -------------------------------------------------------------
     fig.update_layout(
-        title=dict(text=title_text, font=dict(size=16), x=0.5, xanchor="center"),
+        title={"text": title_text, "font": {"size": 16}, "x": 0.5, "xanchor": "center"},
         showlegend=False,
         plot_bgcolor="white",
         paper_bgcolor="white",
         width=width or max(800, n_samples * 25 + 250),
         height=height or max(600, n_genes * 8 + 200),
-        margin=dict(l=120, r=160, t=80, b=40),
+        margin={"l": 120, "r": 160, "t": 80, "b": 40},
         annotations=legend_annotations,
     )
 
@@ -988,8 +988,6 @@ def missing_abundance_density(
     >>> fig = missing_abundance_density(df)
     >>> fig = missing_abundance_density(df, groups=df.columns.get_level_values("Condition"))
     """
-    n_genes, n_samples = df.shape
-
     # Compute per-gene metrics
     na_counts = df.isna().sum(axis=1).values
     mean_abundance = df.mean(axis=1, skipna=True).values
@@ -2059,7 +2057,9 @@ def comissing_heatmap(
             link = hierarchy.linkage(squareform(dist, checks=False), method=method)
             order = hierarchy.leaves_list(link)
             co_df = co_df.iloc[order, :].iloc[:, order]
-        except Exception:
+        except ValueError:
+            # linkage raises on fewer than two features or non-finite distances;
+            # the heatmap then keeps the input order, unclustered
             pass
 
     # Set diagonal to NaN so it doesn't dominate the colour scale

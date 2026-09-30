@@ -1,5 +1,6 @@
 """Tests for the validation API: qc(), assert_qc(), MismapReport, RuleResult."""
 
+import dataclasses
 import json
 import sys
 import warnings
@@ -10,7 +11,7 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mismap_qc import (  # noqa: E402
+from mismap_qc import (
     MismapQCFailure,
     MismapQCWarning,
     MismapReport,
@@ -18,7 +19,6 @@ from mismap_qc import (  # noqa: E402
     assert_qc,
     qc,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ def test_qc_returns_report():
 
 def test_report_frozen():
     report = qc(_make_df())
-    with pytest.raises(Exception):  # FrozenInstanceError
+    with pytest.raises(dataclasses.FrozenInstanceError):
         report.n_features = 999
 
 
@@ -345,7 +345,7 @@ def test_to_html_contains_verdict(tmp_path):
 
 def test_rule_result_frozen():
     r = RuleResult("rule_x", "error", True, 0.5, 0.6, "")
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         r.rule = "other"
 
 

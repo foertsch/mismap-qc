@@ -16,7 +16,9 @@ def _resolve_group_labels(df: pd.DataFrame, group_level):
     if group_level is None:
         return None, None
     if not isinstance(df.columns, pd.MultiIndex):
-        raise ValueError(
+        # ValueError, not the TypeError ruff suggests: callers already catch it,
+        # and it is a mismatch between group_level and the frame's columns
+        raise ValueError(  # noqa: TRY004
             "group_level was specified but df.columns is not a MultiIndex."
         )
     if isinstance(group_level, str):
@@ -214,7 +216,7 @@ def _batch_missing_test(df, groups, group_a, group_b, *, alpha=0.05) -> pd.DataF
         try:
             res = stats.fisher_exact([[miss_a, pres_a], [miss_b, pres_b]])
             p = res.pvalue if hasattr(res, "pvalue") else res[1]
-        except Exception:
+        except ValueError:
             continue
         a, b, c, d = miss_a + 0.5, pres_a + 0.5, miss_b + 0.5, pres_b + 0.5
         log2_OR = float(np.log2((a / b) / (c / d)))
@@ -239,7 +241,7 @@ def _runorder_trend(sample_missing_rate, run_order):
     slope, intercept = np.polyfit(x, y, 1)
     try:
         r, p = stats.pearsonr(x, y)
-    except Exception:
+    except ValueError:
         r, p = 0.0, 1.0
     return {
         "slope": float(slope),

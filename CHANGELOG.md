@@ -8,6 +8,16 @@ All notable changes to mismap-qc. Format roughly follows
 
 ### Changed
 
+- **Lint uses ruff's default rule set.** The four families selected so far
+  (`E4`, `E7`, `E9`, `F`) are replaced by ruff 0.16's defaults, about 400 rules;
+  the CI pin to 0.16.0 keeps that set fixed. The 57 new findings are fixed, not
+  suppressed, except where the rule's advice would be wrong here, and those
+  carry a reason. The ones with behaviour attached: three `except Exception`
+  blocks in `stats.py` and `comissing_heatmap()` now catch only the `ValueError`
+  their scipy call raises, so a real bug there surfaces instead of being
+  swallowed, with the same fallback as before. Two tests now expect
+  `dataclasses.FrozenInstanceError` instead of any exception.
+
 - **The README no longer repeats the API reference.** It carried about 200
   lines of per-parameter tables for `missing_matrix()`, `missing_matrix_html()`
   and `missing_upset()` that the generated [API
