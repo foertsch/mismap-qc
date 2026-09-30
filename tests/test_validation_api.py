@@ -413,3 +413,38 @@ def test_rules_that_are_not_deprecated_do_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         qc(_grouped_df(), group_level="group").check({"min_sample_completeness": 0.5})
+
+
+# ── scipy fallbacks in stats ─────────────────────────────────────────────────
+
+
+def test_batch_test_skips_a_feature_fisher_rejects(monkeypatch):
+    """If fisher_exact raises ValueError, that feature is skipped, not fatal."""
+    import scipy.stats
+
+    from mismap_qc.stats import _batch_missing_test
+
+    def reject(*args, **kwargs):
+        raise ValueError("rejected")
+
+    monkeypatch.setattr(scipy.stats, "fisher_exact", reject)
+    df = pd.DataFrame([[np.nan, np.nan, 1.0, 1.0], [np.nan, 1.0, np.nan, 1.0]],
+                      index=["F0", "F1"], columns=list("abcd"))
+    groups = np.array(["A", "A", "B", "B"])
+    out = _batch_missing_test(df, groups, "A", "B")
+    assert out.empty
+
+
+def test_runorder_trend_falls_back_when_pearsonr_rejects(monkeypatch):
+    """If pearsonr raises ValueError, the trend reports r = 0 and p = 1."""
+    import scipy.stats
+
+    from mismap_qc.stats import _runorder_trend
+
+    def reject(*args, **kwargs):
+        raise ValueError("rejected")
+
+    monkeypatch.setattr(scipy.stats, "pearsonr", reject)
+    trend = _runorder_trend(pd.Series([0.1, 0.2, 0.3, 0.4]), [1, 2, 3, 4])
+    assert trend["r"] == 0.0 and trend["p"] == 1.0
+    assert trend["slope"] == pytest.approx(0.1)

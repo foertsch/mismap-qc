@@ -1074,6 +1074,54 @@ def test_missing_mechanism_save_to_disk(tmp_path):
 # ── comissing_heatmap ─────────────────────────────────────────────────────────
 
 
+def test_missing_matrix_group_summary_prints_per_group_completeness(capsys):
+    """group_summary prints each group's completeness: A fully detected, B half."""
+    import matplotlib.pyplot as plt
+
+    data = np.ones((4, 4))
+    data[:2, 2:] = np.nan  # B's two samples each miss 2 of 4 features
+    cols = pd.MultiIndex.from_tuples(
+        [("A", "a1"), ("A", "a2"), ("B", "b1"), ("B", "b2")], names=["grp", "s"])
+    missing_matrix(pd.DataFrame(data, columns=cols), group_summary="grp")
+    lines = [ln.split() for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert ["Group", "Completeness", "(grp)"] in lines
+    assert ["A", "100%", "(n=2)"] in lines
+    assert ["B", "50%", "(n=2)"] in lines
+    plt.close("all")
+
+
+def test_comissing_heatmap_single_feature_skips_clustering():
+    """Clustering needs two features; with one, the heatmap is drawn unclustered."""
+    import matplotlib.pyplot as plt
+
+    df = pd.DataFrame([[1.0, np.nan, 1.0, np.nan]], index=["F0"], columns=list("abcd"))
+    fig, table = comissing_heatmap(df, return_data=True)
+    assert isinstance(fig, plt.Figure)
+    assert table.empty  # one feature, so no pairs
+    plt.close("all")
+
+
+def test_comissing_heatmap_keeps_input_order_when_linkage_fails(monkeypatch):
+    """If scipy's linkage raises ValueError, the heatmap falls back to the input
+    order instead of failing."""
+    import matplotlib.pyplot as plt
+    from scipy.cluster import hierarchy
+
+    from mismap_qc.stats import _comissing_matrix
+
+    def reject(*args, **kwargs):
+        raise ValueError("non-finite distances")
+
+    df = make_flat_df(missing_frac=0.4)
+    expected = [str(f) for f in _comissing_matrix(df, top_n=50).index]
+    monkeypatch.setattr(hierarchy, "linkage", reject)
+    fig = comissing_heatmap(df)
+    fig.canvas.draw()
+    ax = fig.axes[0]
+    assert [t.get_text() for t in ax.get_yticklabels()] == expected
+    plt.close("all")
+
+
 def test_comissing_heatmap_returns_figure():
     import matplotlib.pyplot as plt
 

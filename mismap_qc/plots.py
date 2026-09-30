@@ -2058,8 +2058,8 @@ def comissing_heatmap(
             order = hierarchy.leaves_list(link)
             co_df = co_df.iloc[order, :].iloc[:, order]
         except ValueError:
-            # linkage raises on fewer than two features or non-finite distances;
-            # the heatmap then keeps the input order, unclustered
+            # linkage raises on non-finite distances; the heatmap then keeps the
+            # input order, unclustered
             pass
 
     # Set diagonal to NaN so it doesn't dominate the colour scale
