@@ -4,6 +4,19 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The README no longer repeats the API reference.** It carried about 200
+  lines of per-parameter tables for `missing_matrix()`, `missing_matrix_html()`
+  and `missing_upset()` that the generated [API
+  reference](https://foertsch.github.io/mismap-qc/api/plots/) already covers.
+  They are replaced by one table listing all ten plot functions. Also corrected:
+  "six of the nine" plots take `return_data` (seven of ten), the install section
+  now names the `[upset]` extra, and the dependency list, which had fallen behind
+  `pyproject.toml`, is gone. 373 lines down to 176.
+
 ## [0.4.1] - 2026-09-28
 
 Fixes `missing_upset()` on pandas 3, where it crashed on any fresh install of
