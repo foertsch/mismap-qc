@@ -21,8 +21,8 @@ for when you want to see the problem rather than just check it.
 pip install mismap-qc
 ```
 
-Optional extras: `[interactive]` for HTML matrices (plotly), `[anndata]` for
-AnnData input.
+Optional extras: `[interactive]` for the HTML matrix (plotly), `[anndata]` for
+AnnData input, `[upset]` for `missing_upset()` (upsetplot).
 
 ## Quick start
 
@@ -63,7 +63,7 @@ df = from_anndata(adata, obs_levels=["batch", "condition"])
 report = qc(df, group_level="condition")
 ```
 
-Six of the nine plot functions pair with their underlying numbers through `return_data=True`. `missing_mechanism()` always returns `(Figure, DataFrame)`; `missing_abundance_density()` and `missing_matrix_html()` return a figure and an HTML string respectively.
+Seven of the ten plot functions pair with their underlying numbers through `return_data=True`. `missing_mechanism()` always returns `(Figure, DataFrame)`; `missing_abundance_density()` and `missing_matrix_html()` return a figure and an HTML string respectively.
 
 ```python
 from mismap_qc import detection_waterfall
@@ -95,19 +95,14 @@ mismap-qc fills a specific gap in the Python omics ecosystem:
 
 mismap-qc handles all three with a single API and reads AnnData natively.
 
-## Examples
+## Input format
 
-- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)** --
-  real-world tutorial using public CPTAC LUAD data (~100 tumour/normal samples).
-  Shows how missingness clusters by tumour/normal status.
+A pandas DataFrame with:
+- **Rows** = features (proteins, genes, peptides)
+- **Columns** = samples, optionally as a `MultiIndex` for annotation strips
+- **NaN** = missing / not detected
 
-## Running the demo
-
-No virtual environment needed -- the demo uses [PEP 723](https://peps.python.org/pep-0723/) inline script dependencies with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv run demo.py
-```
+When columns are a MultiIndex, level names automatically become annotation strip labels.
 
 ## Feature types
 
@@ -119,232 +114,40 @@ The `feature_type` parameter controls labels in axes and tooltips:
 | `"GENE"` | Gene / Genes |
 | `"PEPTIDE"` | Peptide / Peptides |
 
-## Input format
+## Plots
 
-A pandas DataFrame with:
-- **Rows** = features (proteins, genes, peptides)
-- **Columns** = samples, optionally as a `MultiIndex` for annotation strips
-- **NaN** = missing / not detected
+Each check has a plot. Every parameter, with a runnable example, is in the [API reference](https://foertsch.github.io/mismap-qc/api/plots/).
 
-When columns are a MultiIndex, level names automatically become annotation strip labels.
-
-## `missing_matrix()` -- static plot
-
-```python
-fig = missing_matrix(
-    df,
-    title="Gene Detection Matrix",
-    subtitle="80 genes x 30 samples | 23% missing",
-    save="output.png",
-)
-```
-
-### Layout (top to bottom)
-
-| Component | Description |
+| Function | Shows |
 |---|---|
-| Title + subtitle | Bold title, italic subtitle for metadata |
-| Dendrogram | Hierarchical clustering of samples by nullity pattern |
-| Annotation strips | One colour bar per MultiIndex column level |
-| Nullity matrix | Dark = detected, light = missing |
-| Completeness sparkline | Per-sample or per-feature detection rate |
-
-### Parameters
-
-#### Data & labels
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `df` | `DataFrame` | required | Features (rows) x samples (columns). NaN = missing. |
-| `title` | `str` | `""` | Bold figure title |
-| `subtitle` | `str` | `""` | Italic line below title (e.g. dataset metadata) |
-| `feature_type` | `str` | `"PROT"` | Feature type: `"PROT"`, `"GENE"`, or `"PEPTIDE"` |
-| `label_level` | `int` | `-1` | Which column level to use for x-axis tick labels |
-
-#### Clustering & sorting
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `cluster_samples` | `bool` | `True` | Cluster samples by binary nullity pattern |
-| `cluster_method` | `str` | `"average"` | scipy linkage method |
-| `show_dendrogram` | `bool` | `True` | Show dendrogram above the matrix |
-| `sort_features` | `str \| None` | `"descending"` | Sort features by completeness (`"ascending"`, `"descending"`, or `None`) |
-
-#### Annotations
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `annotation_levels` | `list[int] \| None` | `None` | Column levels to show as colour bars (default: all except innermost) |
-| `annotation_colors` | `dict \| None` | `None` | Custom colours per level (see below) |
-
-Custom annotation colours accept level indices or names as keys:
+| `missing_matrix()` | Nullity matrix: samples clustered by missingness pattern, one annotation strip per MultiIndex level, a completeness sparkline |
+| `missing_matrix_html()` | The same matrix as interactive HTML, with hover per cell (`[interactive]`) |
+| `completeness_bars()` | Mean completeness per group |
+| `completeness_violin()` | The per-sample distribution behind each group's mean, so one bad run stands out |
+| `detection_waterfall()` | Features ranked by detection rate, with how many survive each filtering cutoff |
+| `missing_runorder()` | Missing rate per sample against acquisition order, smoothed within each batch |
+| `missing_mechanism()` | MNAR, MAR or INSUFFICIENT per feature, from a one-sided Mann-Whitney test |
+| `missing_abundance_density()` | Mean abundance split by how often a feature is missing, the MNAR signature at a glance |
+| `comissing_heatmap()` | How often pairs of features are missing together |
+| `missing_upset()` | Which combinations of samples share missing features (`[upset]`) |
 
 ```python
-missing_matrix(
-    df,
-    annotation_colors={
-        "Medium_Type": {"Fresh": "#88CCEE", "Conditioned": "#CC6677"},
-        "Medium_Condition": {"SF": "#44AA99", "FBS": "#DDCC77", "AS": "#AA4499"},
-    },
-)
-```
+from mismap_qc import missing_matrix
 
-Unspecified factor levels fall back to built-in palettes.
-
-#### Completeness sparkline
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `completeness` | `str` | `"below"` | `"below"` = per-sample (horizontal), `"side"` = per-feature (vertical) |
-| `completeness_threshold` | `float \| None` | `None` | Draws a dashed red line at this value (0--1) |
-
-#### Legends & layout
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `legend_loc` | `str` | `"upper right"` | Corner for legends: `"upper right"`, `"upper left"`, `"lower right"`, `"lower left"` |
-| `figsize` | `tuple \| None` | `None` | Figure size (auto-calculated if `None`) |
-| `color_present` | `str` | `"#2d2d2d"` | Colour for detected cells |
-| `color_missing` | `str` | `"#f0f0f0"` | Colour for missing cells |
-
-#### Font sizes
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `fontsize` | `int` | `10` | Base font size (fallback) |
-| `fontsize_legend` | `int \| None` | `None` | Legend entries |
-| `fontsize_rows` | `int \| None` | `None` | Gene/row labels |
-| `fontsize_cols` | `int \| None` | `None` | Sample/column labels |
-| `fontsize_annotations` | `int \| None` | `None` | Annotation strip labels |
-
-#### Group summary
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `group_summary` | `int \| str \| None` | `None` | Column level to group by; prints per-group completeness to console |
-
-```python
-fig = missing_matrix(df, group_summary="Medium_Condition")
-```
-
-Output:
-
-```
-Group Completeness (Medium_Condition)
---------------------------------
-  SF               63%  (n=10)
-  AS               80%  (n=10)
-  FBS              88%  (n=10)
-```
-
-Only prints when the level has more than one group.
-
-#### Split by factor
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `split_by` | `int \| str \| None` | `None` | Split into side-by-side panels by this column level |
-
-```python
 fig = missing_matrix(df, split_by="Medium_Condition", annotation_levels=[0])
 ```
 
 ![split](output/demo_split.png)
 
-Each panel is independently clustered. The split level is automatically removed from annotation strips.
-
-#### Output
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `save` | `str \| None` | `None` | Save figure to this path |
-| `dpi` | `int` | `150` | Save resolution |
-
-## `missing_matrix_html()` -- interactive HTML
-
-Plotly-based interactive version with hover tooltips showing feature name, sample ID, all annotation levels, and detection status.
-
-```python
-from mismap_qc import missing_matrix_html
-
-missing_matrix_html(
-    df,
-    title="Gene Detection Matrix (Interactive)",
-    subtitle="80 genes x 30 samples",
-    completeness_threshold=0.5,
-    save="output/interactive.html",
-)
-```
-
-Supports the same clustering, sorting, annotation, and completeness options as the static version. Additional parameters:
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `width` | `int \| None` | `None` | Plot width in pixels (auto-calculated if `None`) |
-| `height` | `int \| None` | `None` | Plot height in pixels (auto-calculated if `None`) |
-
-Requires `plotly` (`pip install plotly` or included via PEP 723 in demo.py).
-
-## Generating toy data
-
-```bash
-uv run make_toy_data.py
-```
-
-Creates `data/toy_rnaseq.csv`: 80 genes x 30 samples with structured missingness patterns across 6 groups (Fresh/Conditioned x SF/FBS/AS).
-
-## Dependencies
-
-- numpy
-- matplotlib
-- scipy
-- pandas
-- plotly (optional, for HTML export only)
-
-## `missing_upset()` -- co-missingness intersections
-
-Which *combinations* of samples share missing features. For each intersection, how many features are missing in exactly that combination and no others. At small n this is what separates technical dropout from biology: if two replicates always lose the same proteins together, that is not biology.
-
-Requires `upsetplot` (`pip install mismap-qc[upset]`).
-
-```python
-from mismap_qc import missing_upset
-
-fig, table = missing_upset(df, max_intersections=12, return_data=True)
-```
+`missing_upset()` answers the small-n question of whether dropout is technical. On synthetic data with two injected patterns it recovers both: `Fresh3` alone accounts for 60 missing features (one bad sample), and `Cond2|Cond3` share 34 (a pair that drops out together).
 
 ![upset](output/demo_upset.png)
 
-The example above recovers two real patterns: `Fresh3` alone accounts for 60 features (one bad sample), and `Cond2|Cond3` shares 34 (a co-dropping pair).
+## Examples
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `by` | `str \| int` | `"sample"` | `"sample"` for one set per sample, or a column level name/index for one set per group |
-| `group_min_frac` | `float` | `0.5` | Group mode only. A feature counts as missing in a group once it is missing in at least this fraction of the group's samples |
-| `min_size` | `int` | `1` | Intersections smaller than this are not drawn |
-| `max_intersections` | `int` | `50` | Draw at most this many intersections, largest first |
-| `feature_type` | `str` | `"PROT"` | `"PROT"`, `"GENE"`, or `"PEPTIDE"` |
-| `return_data` | `bool` | `False` | Return `(Figure, DataFrame)` |
-
-Intersection count grows quickly with sample count, so the plot caps at the 50 largest by default. Truncation is stated on the figure ("showing the 12 largest of 33 intersections") and `return_data=True` still returns **every** intersection, with a `plotted` column marking what made the cut. Nothing is silently dropped.
-
-Every feature with at least one missing value belongs to exactly one intersection, so the returned table has one row per feature:
-
-| Column | Description |
-|---|---|
-| `feature` | Feature ID |
-| `members` | The samples or groups it is missing in, pipe-joined (`"Cond2\|Cond3"`) |
-| `n_features` | Size of that intersection |
-| `rank` | Intersection rank by size, 1 = largest |
-| `plotted` | Whether it survived `min_size` and `max_intersections` |
-
-Which makes the follow-up question a one-liner:
-
-```python
-table.query("members == 'Cond2|Cond3'").feature   # proteins lost in exactly those two
-```
-
-Fully detected features carry no intersection information and are excluded.
+- **[CPTAC Lung Adenocarcinoma proteomics](examples/cptac_proteomics.ipynb)**: real-world tutorial on public CPTAC LUAD data (~100 tumour/normal samples). Shows how missingness clusters by tumour/normal status.
+- **Demo script:** `uv run demo.py` renders the full plot set. It declares its dependencies inline ([PEP 723](https://peps.python.org/pep-0723/)), so no virtual environment is needed.
+- **Toy data:** `uv run make_toy_data.py` writes `data/toy_rnaseq.csv`, 80 genes x 30 samples with structured missingness across six groups (Fresh/Conditioned x SF/FBS/AS).
 
 ## Contributing
 
