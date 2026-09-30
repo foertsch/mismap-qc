@@ -11,9 +11,10 @@ the mismap_qc visualization.
 
 Output: data/toy_rnaseq.csv (MultiIndex columns preserved via header rows)
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 
 def make_toy_data(seed: int = 42) -> pd.DataFrame:

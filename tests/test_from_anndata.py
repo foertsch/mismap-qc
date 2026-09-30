@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mismap_qc import from_anndata  # noqa: E402
+from mismap_qc import from_anndata
 
 anndata = pytest.importorskip("anndata")
 

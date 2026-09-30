@@ -15,10 +15,10 @@ import pandas as pd
 import pytest
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
-from mismap_qc import missing_upset  # noqa: E402
-from mismap_qc.stats import _upset_intersections  # noqa: E402
+from mismap_qc import missing_upset
+from mismap_qc.stats import _upset_intersections
 
 upsetplot = pytest.importorskip("upsetplot", reason="missing_upset needs the [upset] extra")
 
@@ -101,7 +101,7 @@ def test_missing_upset_save_to_disk(tmp_path):
 
 
 def test_missing_upset_return_data_schema():
-    fig, table = missing_upset(make_flat_df(), return_data=True)
+    _fig, table = missing_upset(make_flat_df(), return_data=True)
     assert list(table.columns) == SCHEMA
     assert len(table) == 2  # F2 and F4 are fully detected and excluded
     plt.close("all")
@@ -163,10 +163,9 @@ def test_matrix_shim_is_removed_afterwards():
     from mismap_qc.plots import _upset_matrix_fills_nan_styles
 
     ax = _RecordingAx()
-    with pytest.raises(RuntimeError):
-        with _upset_matrix_fills_nan_styles(ax):
-            assert "scatter" in vars(ax)
-            raise RuntimeError("draw failed")
+    with pytest.raises(RuntimeError), _upset_matrix_fills_nan_styles(ax):
+        assert "scatter" in vars(ax)
+        raise RuntimeError("draw failed")
     assert "scatter" not in vars(ax)
     ax.scatter(edgecolors=[float("nan")])  # unpatched: passed through untouched
     assert np.isnan(ax.calls[-1]["edgecolors"][0])

@@ -369,7 +369,7 @@ def _rates_frame(rates, n_features=200):
     df = pd.DataFrame(np.ones((n_features, len(rates))),
                       columns=[f"s{j}" for j in range(len(rates))])
     for j, rate in enumerate(rates):
-        df.iloc[: int(round(n_features * rate)), j] = nan
+        df.iloc[: round(n_features * rate), j] = nan
     return df
 
 

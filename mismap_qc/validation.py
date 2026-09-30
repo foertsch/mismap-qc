@@ -448,7 +448,7 @@ def _evaluable_outliers(report):
 def _rule_max_sample_outliers(report, threshold, severity):
     scored = _evaluable_outliers(report)
     flagged = scored[scored["flagged"]]
-    n = int(len(flagged))
+    n = len(flagged)
     passed = n <= threshold
     detail = ""
     if not passed:

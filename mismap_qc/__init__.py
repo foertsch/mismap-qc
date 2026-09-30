@@ -47,7 +47,7 @@ from .validation import (
 )
 
 # --- internal helpers re-exported for tests / advanced users ---
-# noqa flags: these are deliberately re-exported so existing imports keep working.
+# The F401 markers below flag deliberate re-exports, kept so existing imports work.
 from ._core import (
     _PALETTES,  # noqa: F401
     _assign_colors,  # noqa: F401

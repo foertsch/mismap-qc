@@ -33,7 +33,7 @@ ruff check .
 mypy
 ```
 
-Ruff is pinned to 0.16.0 in the workflow, and the enabled rules are declared explicitly in `pyproject.toml` under `[tool.ruff.lint]`. This is deliberate. Ruff's default rule set widened in 0.16 and turned a green build into 45 errors without a line of code changing. If you want to widen the selection, do it as its own pull request with the resulting fixes, not as a side effect of another change.
+Ruff is pinned to 0.16.0 in the workflow, and the project uses that version's default rule set (about 400 rules). The pin is what keeps the set still: ruff's defaults widened in 0.16 and turned a green build into 45 errors without a line of code changing. Moving to a newer ruff can change the defaults again, so do it as its own pull request with the resulting fixes, not as a side effect of another change. Run `ruff check .` with the same version locally (`uv run --with ruff==0.16.0 ruff check .`) or it may disagree with CI.
 
 Expect fewer passing tests in a bare environment than with the `dev` extra installed, because the optional-dependency tests skip. Tests named `*_realdata.py` need CPTAC data that is not in the repo and skip without it.
 
