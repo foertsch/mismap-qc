@@ -25,6 +25,21 @@ from ._core import (
 )
 from .stats import _classify_mechanism, _comissing_matrix, _upset_intersections
 
+# missing_matrix labels every row up to this many features. Past it the rows are
+# unlabelled, so the auto-sized height stops growing at _MAX_AUTO_HEIGHT.
+_ROW_LABEL_LIMIT = 120
+_MAX_AUTO_HEIGHT = 12.0
+
+def _auto_matrix_figsize(n_genes: int, n_samples: int, n_ann: int,
+                         spark_side: bool) -> tuple[float, float]:
+    """The figure size missing_matrix picks when figsize is None."""
+    w = max(10, n_samples * 0.35 + 4) + (2 if spark_side else 0)
+    h = max(6, n_genes * 0.12 + 2 + n_ann * 0.4)
+    if n_genes > _ROW_LABEL_LIMIT:
+        # unlabelled rows need no height of their own; 3,000 rows would
+        # otherwise give a figure over 360 in tall
+        h = min(h, _MAX_AUTO_HEIGHT)
+    return (float(w), float(h))
 
 def missing_matrix(
     df: pd.DataFrame,
@@ -95,7 +110,10 @@ def missing_matrix(
         Swap present and missing colours. When ``True``, missing cells are dark
         and present cells are light — the inverse of the default.
     figsize : tuple | None
-        Figure size; auto-calculated if None.
+        Figure size; auto-calculated if None, with the height capped at 12 in
+        once there are too many features (over 120) to label every row. With
+        ``split_by`` it is the size of the whole figure, title included, shared
+        equally across the panels.
     fontsize : int
         Base font size used as fallback (default 10).
     fontsize_legend : int | None
@@ -209,7 +227,7 @@ def missing_matrix(
     # -- resolve row font size ----------------------------------------------
     if fontsize_rows is not None:
         fs_rows = fontsize_rows
-    elif n_genes <= 120:
+    elif n_genes <= _ROW_LABEL_LIMIT:
         fs_rows = max(3, min(fontsize - 2, int(300 / n_genes)))
     else:
         fs_rows = fontsize - 2
@@ -221,11 +239,7 @@ def missing_matrix(
     show_dend = show_dendrogram and col_linkage is not None
 
     if figsize is None:
-        w = max(10, n_samples * 0.35 + 4)
-        if spark_side:
-            w += 2
-        h = max(6, n_genes * 0.12 + 2 + n_ann * 0.4)
-        figsize = (w, h)
+        figsize = _auto_matrix_figsize(n_genes, n_samples, n_ann, spark_side)
 
     parts: list[tuple[str, float]] = []
     matrix_h = max(6, n_genes * 0.08)
@@ -234,7 +248,10 @@ def missing_matrix(
     # scale it with the matrix while preserving the old value for small data.
     ann_h = max(0.4, matrix_h * 0.02)
     if show_dend:
-        parts.append(("dend", 2.0))
+        # scaled like the strips below: a fixed 2.0 flattens to a line once a
+        # tall matrix sits in a capped or user-sized figure (no change under
+        # ~250 rows)
+        parts.append(("dend", max(2.0, matrix_h * 0.1)))
     for lv in annotation_levels:
         parts.append((f"ann_{lv}", ann_h))
     parts.append(("matrix", matrix_h))
@@ -349,7 +366,7 @@ def missing_matrix(
         ax_mat.set_xticklabels([])
 
     # Y tick labels
-    if n_genes <= 120:
+    if n_genes <= _ROW_LABEL_LIMIT:
         ax_mat.set_yticks(range(n_genes))
         ax_mat.set_yticklabels(df.index, fontsize=fs_rows)
     else:
@@ -517,26 +534,34 @@ def _split_matrix(df, *, split_by, title, subtitle, save, dpi, figsize, **kwargs
         ann_levels = [i for i in ann_levels if i != split_lv]
     kwargs["annotation_levels"] = ann_levels
 
-    # Figure: side by side
-    if figsize is None:
-        per_panel_w = max(6, df.shape[1] / n_panels * 0.35 + 3)
-        h = max(6, df.shape[0] * 0.12 + 3)
-        figsize = (per_panel_w * n_panels + 1, h)
+    # Header band (inches) for the title and subtitle, inside the figure and
+    # inside a requested figsize
+    fontsize = kwargs.get("fontsize", 10)
+    pad = 0.1
+    title_h = (fontsize + 4) * 1.4 / 72 if title else 0.0
+    sub_h = fontsize * 1.4 / 72 if subtitle else 0.0
+    header_h = title_h + sub_h + 2 * pad if (title or subtitle) else 0.0
 
-    fig, panel_axes = plt.subplots(1, n_panels, figsize=figsize, facecolor="white")
-    if n_panels == 1:
-        panel_axes = [panel_axes]
-
-    y_title = 0.97
-    if title:
-        fig.suptitle(title, fontsize=kwargs.get("fontsize", 10) + 4,
-                     fontweight="bold", y=y_title)
-    if subtitle:
-        fig.text(0.5, y_title - 0.03, subtitle, ha="center", va="top",
-                 fontsize=kwargs.get("fontsize", 10), color="#666666",
-                 style="italic")
-
-    plt.close(fig)  # we'll build sub-figures instead
+    # Every panel is drawn at the same size. A requested figsize is shared out
+    # equally; without one, each panel gets the largest auto size among them.
+    if figsize is not None:
+        if figsize[1] <= header_h:
+            raise ValueError(
+                f"figsize height {figsize[1]} in leaves no room for the panels "
+                f"under the {header_h:.2f} in title band"
+            )
+        panel_figsize = (figsize[0] / n_panels, figsize[1] - header_h)
+    else:
+        spark_side = kwargs.get("completeness", "below") == "side"
+        sizes = [
+            _auto_matrix_figsize(
+                df.shape[0],
+                int((df.columns.get_level_values(split_lv) == group).sum()),
+                len(ann_levels), spark_side,
+            )
+            for group in groups
+        ]
+        panel_figsize = (max(w for w, _ in sizes), max(h for _, h in sizes))
 
     # Build individual panels as separate figures, then composite
     panel_figs = []
@@ -548,6 +573,7 @@ def _split_matrix(df, *, split_by, title, subtitle, save, dpi, figsize, **kwargs
             title=f"{split_name}: {group}",
             subtitle="",
             split_by=None,
+            figsize=panel_figsize,
             save=None,
             **kwargs,
         )
@@ -566,26 +592,40 @@ def _split_matrix(df, *, split_by, title, subtitle, save, dpi, figsize, **kwargs
         images.append(img)
         buf.close()
 
-    max_h = max(im.shape[0] for im in images)
-    total_w = sum(im.shape[1] for im in images)
+    widths = [im.shape[1] for im in images]
+    if figsize is not None:
+        comp_w, body_h = figsize[0], figsize[1] - header_h
+    else:
+        comp_w = sum(widths) / dpi
+        body_h = max(im.shape[0] for im in images) / dpi
+    comp_h = body_h + header_h
 
     comp_fig, comp_axes = plt.subplots(
         1, n_panels,
-        figsize=(total_w / dpi, max_h / dpi),
+        figsize=(comp_w, comp_h),
         facecolor="white",
+        gridspec_kw={"width_ratios": widths},
     )
     if n_panels == 1:
         comp_axes = [comp_axes]
 
     for ax, img in zip(comp_axes, images):
         ax.imshow(img)
+        # panels keep their aspect; pin them under the header so any slack
+        # falls to the bottom, where bbox_inches="tight" trims it on save
+        ax.set_anchor("N")
         _clean_ax(ax)
 
-    comp_fig.subplots_adjust(wspace=0.02, left=0, right=1, top=1, bottom=0)
+    comp_fig.subplots_adjust(wspace=0.02, left=0, right=1,
+                             top=body_h / comp_h, bottom=0)
 
     if title:
-        comp_fig.suptitle(title, fontsize=kwargs.get("fontsize", 10) + 4,
-                          fontweight="bold", y=1.02)
+        comp_fig.suptitle(title, fontsize=fontsize + 4, fontweight="bold",
+                          y=1 - pad / comp_h)
+    if subtitle:
+        comp_fig.text(0.5, 1 - (pad + title_h) / comp_h, subtitle,
+                      ha="center", va="top", fontsize=fontsize,
+                      color="#666666", style="italic")
 
     if save:
         comp_fig.savefig(save, dpi=dpi, bbox_inches="tight", facecolor="white")

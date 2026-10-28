@@ -168,14 +168,14 @@ def test_missing_matrix_panel_heights_small_data_unchanged():
 
 
 def test_missing_matrix_panel_heights_scale_with_tall_matrix():
-    """On a tall matrix the strip and sparkline grow with it instead of
-    shrinking to a few pixels."""
+    """On a tall matrix the dendrogram, strip and sparkline grow with it instead
+    of shrinking to a few pixels."""
     import matplotlib.pyplot as plt
 
     fig = missing_matrix(make_multiindex_df(n_genes=1000))
     matrix_h = 1000 * 0.08
     assert _panel_heights(fig) == pytest.approx(
-        [2.0, matrix_h * 0.02, matrix_h, matrix_h * 0.045])
+        [matrix_h * 0.1, matrix_h * 0.02, matrix_h, matrix_h * 0.045])
     plt.close("all")
 
 
@@ -218,6 +218,104 @@ def test_missing_matrix_many_samples_keep_samples_title():
     fig.canvas.draw()
     assert all(t.get_text() == "" for t in ax_sp.get_xticklabels())
     plt.close("all")
+
+
+@pytest.mark.parametrize("n_genes, n_samples, n_ann, spark_side, expected", [
+    (100, 10, 1, False, (10.0, 100 * 0.12 + 2 + 0.4)),   # rows labelled: grows
+    (120, 10, 1, False, (10.0, 120 * 0.12 + 2 + 0.4)),   # last labelled size
+    (121, 10, 1, False, (10.0, 12.0)),                    # unlabelled: capped
+    (3000, 10, 1, False, (10.0, 12.0)),
+    (20, 40, 0, True, (40 * 0.35 + 4 + 2, 6.0)),          # wide, side sparkline
+])
+def test_auto_matrix_figsize(n_genes, n_samples, n_ann, spark_side, expected):
+    from mismap_qc.plots import _auto_matrix_figsize
+
+    assert _auto_matrix_figsize(n_genes, n_samples, n_ann, spark_side) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("split_by", [None, "Condition"])
+def test_missing_matrix_auto_height_capped_for_many_features(split_by):
+    """Unlabelled rows (over 120 features) no longer grow the figure: 3,000 rows
+    used to give one over 360 in tall."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df(n_genes=3000, n_per_group=4)
+    fig = missing_matrix(df, split_by=split_by, title="T", dpi=50)
+    h = fig.get_size_inches()[1]
+    # split mode adds the composite's title band above the capped panels
+    assert h <= (12 if split_by is None else 13)
+    plt.close("all")
+
+
+def test_missing_matrix_split_by_figsize_sizes_composite(tmp_path: Path):
+    """With split_by, figsize is the size of the whole figure, not ignored. It
+    used to be: (10, 9) on a 500-row matrix gave about 18 x 57 in."""
+    import matplotlib.pyplot as plt
+
+    df = make_multiindex_df(n_genes=500, n_per_group=4)
+    out = tmp_path / "split.png"
+    dpi = 50
+    fig = missing_matrix(df, split_by="Condition", title="T", subtitle="S",
+                         figsize=(10, 9), dpi=dpi, save=str(out))
+    assert fig.get_size_inches() == pytest.approx((10, 9))
+    # saved with bbox_inches="tight", which pads 0.1 in a side and trims slack
+    # under the aspect-preserving panels
+    h_px, w_px = plt.imread(out).shape[:2]
+    assert abs(w_px - 10 * dpi) <= 0.2 * dpi + 1
+    assert 0.7 * 9 * dpi <= h_px <= (9 + 0.2) * dpi + 1
+    plt.close("all")
+
+
+def _uneven_split_df() -> pd.DataFrame:
+    """Two groups of very different size: 2 samples and 20."""
+    rng = np.random.default_rng(0)
+    cols = pd.MultiIndex.from_tuples(
+        [("A", f"a{i}") for i in range(2)] + [("B", f"b{i}") for i in range(20)],
+        names=["Condition", "s"])
+    return pd.DataFrame(np.where(rng.random((60, 22)) < 0.2, np.nan, 1.0), columns=cols)
+
+
+@pytest.mark.parametrize("figsize", [None, (12, 6)])
+def test_missing_matrix_split_by_panels_equal_size(figsize):
+    """Every panel is drawn at the same size, whatever its sample count, with or
+    without figsize."""
+    import matplotlib.pyplot as plt
+
+    fig = missing_matrix(_uneven_split_df(), split_by="Condition", figsize=figsize)
+    # each axes shows one rendered panel; compare the panels themselves; the
+    # axes boxes come out near-equal even when the panels inside them differ
+    (wa, ha), (wb, hb) = [ax.images[0].get_array().shape[1::-1] for ax in fig.axes]
+    assert wa == pytest.approx(wb, rel=0.01)
+    # heights differ by a few px where rotated sample labels differ in length
+    assert ha == pytest.approx(hb, rel=0.02)
+    plt.close("all")
+
+
+def test_missing_matrix_split_by_draws_subtitle():
+    """The subtitle reaches the split figure, under the title and above the
+    panels. It used to be drawn on a figure that was discarded."""
+    import matplotlib.pyplot as plt
+
+    fig = missing_matrix(make_multiindex_df(), split_by="Condition",
+                         title="Detection", subtitle="DIA-NN, 10 samples")
+    texts = {t.get_text(): t for t in fig.texts}
+    assert "DIA-NN, 10 samples" in texts
+    fig.canvas.draw()
+    sub = texts["DIA-NN, 10 samples"].get_window_extent()
+    ttl = texts["Detection"].get_window_extent()
+    panels_top = max(ax.get_window_extent().y1 for ax in fig.axes)
+    assert sub.y1 <= fig.bbox.height
+    assert sub.y1 <= ttl.y0
+    assert sub.y0 >= panels_top
+    plt.close("all")
+
+
+def test_missing_matrix_split_by_figsize_too_short_for_title():
+    """A figsize shorter than the title band is a clear error, not a negative
+    panel height deep inside matplotlib."""
+    with pytest.raises(ValueError, match="title band"):
+        missing_matrix(make_multiindex_df(), split_by="Condition",
+                       title="T", subtitle="S", figsize=(6, 0.3))
 
 
 # ── missing_matrix_html (interactive) ────────────────────────────────────────
