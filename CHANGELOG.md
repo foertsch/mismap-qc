@@ -27,6 +27,23 @@ All notable changes to mismap-qc. Format roughly follows
   now names the `[upset]` extra, and the dependency list, which had fallen behind
   `pyproject.toml`, is gone. 373 lines down to 176.
 
+### Fixed
+
+- **`missing_matrix()` figure size on large matrices and with `split_by`.**
+  - The auto-sized height grew by 0.12 in per feature with no limit, so 3,000
+    features gave a figure over 360 in tall. Past 120 features, where rows stop
+    being labelled, it is now capped at 12 in.
+  - With `split_by`, `figsize` was ignored: `(10, 9)` on a 500-feature matrix
+    gave about 18 x 57 in. It now sizes the whole figure, title included.
+  - With `split_by`, the subtitle was drawn on a figure that was then discarded.
+    Title and subtitle now sit in a band at the top of the figure.
+  - With `split_by`, every panel is drawn at the same size, whatever its sample
+    count. Without `figsize`, panels take the largest of their auto sizes.
+  - The dendrogram's height now scales with the matrix like the annotation
+    strips, so it no longer flattens to a line in a capped or user-sized figure.
+    Below about 250 features nothing changes.
+  - A `figsize` too short for the title band raises a clear `ValueError`.
+
 ## [0.4.1] - 2026-09-28
 
 Fixes `missing_upset()` on pandas 3, where it crashed on any fresh install of
