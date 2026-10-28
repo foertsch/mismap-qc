@@ -4,7 +4,15 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.2] - 2026-10-28
+
+Fixes `missing_matrix()` figure sizing on large matrices and with `split_by`.
+The README is shorter and lint uses ruff's default rules; neither changes the
+library's behaviour.
+
+```bash
+pip install --upgrade mismap-qc
+```
 
 ### Changed
 
