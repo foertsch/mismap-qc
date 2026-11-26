@@ -4,6 +4,19 @@ All notable changes to mismap-qc. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Batch-test q-values are now Benjamini-Hochberg.** The per-feature batch test
+  (`qc(..., group_level=..., checks=("batch",))`, `report.batch_test`) computed
+  `p * m / rank` without the running minimum from the largest rank down. The
+  q-values were not monotone in `p`, so a feature could miss `significant` while
+  a feature with a larger p-value passed. The running minimum is now applied, as
+  `docs/PLAN_new_plots.md` intended. A q-value can only stay the same or get
+  smaller, so `significant` and the `max_batch_effect_features` count can rise
+  for the same data. Tied p-values now share one q-value.
+
 ## [0.4.2] - 2026-10-28
 
 Fixes `missing_matrix()` figure sizing on large matrices and with `split_by`.

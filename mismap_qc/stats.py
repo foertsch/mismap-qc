@@ -193,8 +193,33 @@ def _top_codropouts(df: pd.DataFrame, *, top_n: int = 20) -> pd.DataFrame:
     rows = [(names[iu[0][i]], names[iu[1][i]], float(co_vals[i])) for i in order]
     return pd.DataFrame(rows, columns=["feature_a", "feature_b", "comissingness"])
 
+def _bh_qvalues(p_values) -> np.ndarray:
+    """Benjamini-Hochberg adjusted p-values (q-values), in the input order.
+
+    ``p * m / rank`` alone is not monotone in ``p``, so a smaller p-value can get
+    a larger q-value than the one above it. Taking the running minimum from the
+    largest rank down fixes that, and it is what makes ``q < alpha`` the same
+    set as the Benjamini-Hochberg step-up rejections. Tied p-values share one
+    q-value.
+    """
+    p = np.asarray(p_values, dtype=float)
+    m = p.size
+    if m == 0:
+        return p.copy()
+    order = np.argsort(p, kind="stable")
+    scaled = p[order] * m / np.arange(1, m + 1)
+    q_sorted = np.minimum.accumulate(scaled[::-1])[::-1]
+    q = np.empty(m, dtype=float)
+    q[order] = np.minimum(q_sorted, 1.0)
+    return q
+
+
 def _batch_missing_test(df, groups, group_a, group_b, *, alpha=0.05) -> pd.DataFrame:
-    """Per-feature Fisher's exact test of missingness between two groups."""
+    """Per-feature Fisher's exact test of missingness between two groups.
+
+    ``q_value`` is the Benjamini-Hochberg adjustment (see ``_bh_qvalues``) over the
+    features that were tested, and ``significant`` is ``q_value < alpha``.
+    """
     from scipy import stats
 
     mask_a = groups == group_a
@@ -224,9 +249,7 @@ def _batch_missing_test(df, groups, group_a, group_b, *, alpha=0.05) -> pd.DataF
     if not rows:
         return pd.DataFrame(columns=cols)
     out = pd.DataFrame(rows, columns=["feature", "log2_OR", "p_value"])
-    m = len(out)
-    ranks = out["p_value"].rank(method="first")
-    out["q_value"] = (out["p_value"] * m / ranks).clip(upper=1.0)
+    out["q_value"] = _bh_qvalues(out["p_value"].to_numpy())
     out["significant"] = out["q_value"] < alpha
     out["enriched_in"] = np.where(out["log2_OR"] > 0, str(group_a), str(group_b))
     return out[cols]
