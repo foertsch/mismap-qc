@@ -435,6 +435,60 @@ def test_batch_test_skips_a_feature_fisher_rejects(monkeypatch):
     assert out.empty
 
 
+# ── Benjamini-Hochberg q-values in the batch test ────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "p, expected",
+    [
+        # p * m / rank alone gives (0.08, 0.045); the running minimum fixes it.
+        ([0.04, 0.045], [0.045, 0.045]),
+        # Input order is kept.
+        ([0.01, 0.04, 0.03, 0.005], [0.02, 0.04, 0.04, 0.02]),
+        # Tied p-values share one q-value.
+        ([0.02, 0.02, 0.5], [0.03, 0.03, 0.5]),
+        ([0.7], [0.7]),
+    ],
+)
+def test_bh_qvalues_known_values(p, expected):
+    from mismap_qc.stats import _bh_qvalues
+
+    assert _bh_qvalues(np.array(p)) == pytest.approx(expected)
+
+
+def test_bh_qvalues_empty_input():
+    from mismap_qc.stats import _bh_qvalues
+
+    assert _bh_qvalues(np.array([])).size == 0
+
+
+def test_batch_test_qvalues_follow_benjamini_hochberg():
+    """q never decreases as p increases, q >= p, and `significant` is the BH step-up rule."""
+    from mismap_qc.stats import _batch_missing_test
+
+    rng = np.random.default_rng(1)
+    n_feat, n_per = 400, 10
+    df = pd.DataFrame(
+        rng.normal(size=(n_feat, 2 * n_per)), index=[f"f{i}" for i in range(n_feat)]
+    )
+    miss = rng.random(df.shape) < 0.15
+    miss[:40, n_per:] |= rng.random((40, n_per)) < 0.6
+    df = df.mask(miss)
+    groups = np.array(["A"] * n_per + ["B"] * n_per)
+
+    out = _batch_missing_test(df, groups, "A", "B", alpha=0.05)
+    by_p = out.sort_values("p_value", kind="stable")
+    assert by_p["q_value"].is_monotonic_increasing
+    assert (by_p["q_value"] >= by_p["p_value"]).all()
+
+    # Step-up rule: reject every p up to the largest rank k with p_(k) <= k * alpha / m.
+    p_sorted = by_p["p_value"].to_numpy()
+    m = len(p_sorted)
+    passing = np.nonzero(p_sorted <= np.arange(1, m + 1) * 0.05 / m)[0]
+    expected_rejections = int(passing.max()) + 1 if passing.size else 0
+    assert int(out["significant"].sum()) == expected_rejections
+
+
 def test_runorder_trend_falls_back_when_pearsonr_rejects(monkeypatch):
     """If pearsonr raises ValueError, the trend reports r = 0 and p = 1."""
     import scipy.stats
