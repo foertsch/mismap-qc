@@ -1,12 +1,12 @@
 # mismap-qc
 
-[![PyPI version](https://img.shields.io/pypi/v/mismap-qc.svg)](https://pypi.org/project/mismap-qc/)
-[![Python versions](https://img.shields.io/pypi/pyversions/mismap-qc.svg)](https://pypi.org/project/mismap-qc/)
-[![License: MIT](https://img.shields.io/pypi/l/mismap-qc.svg)](LICENSE)
-[![Tests](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml/badge.svg)](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml)
-[![Docs](https://github.com/foertsch/mismap-qc/actions/workflows/docs-deploy.yml/badge.svg)](https://foertsch.github.io/mismap-qc/)
-[![codecov](https://codecov.io/gh/foertsch/mismap-qc/graph/badge.svg)](https://codecov.io/gh/foertsch/mismap-qc)
-[![Views](https://hits.sh/github.com/foertsch/mismap-qc.svg?label=views)](https://hits.sh/github.com/foertsch/mismap-qc/)
+[![Tests](https://img.shields.io/github/actions/workflow/status/foertsch/mismap-qc/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/foertsch/mismap-qc/actions/workflows/tests.yml)
+[![codecov](https://img.shields.io/codecov/c/github/foertsch/mismap-qc?style=flat-square)](https://codecov.io/gh/foertsch/mismap-qc)
+[![License: MIT](https://img.shields.io/github/license/foertsch/mismap-qc?style=flat-square)](LICENSE)
+[![Python versions](https://img.shields.io/pypi/pyversions/mismap-qc?style=flat-square)](https://pypi.org/project/mismap-qc/)
+[![PyPI version](https://img.shields.io/pypi/v/mismap-qc?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/mismap-qc/)
+[![Docs](https://img.shields.io/github/actions/workflow/status/foertsch/mismap-qc/docs-deploy.yml?branch=main&label=docs&style=flat-square)](https://foertsch.github.io/mismap-qc/)
+[![Views](https://hits.sh/github.com/foertsch/mismap-qc.svg?label=views&style=flat-square)](https://hits.sh/github.com/foertsch/mismap-qc/)
 
 Missing-data validation for proteomics and RNA-Seq experiments. Detects outlier
 samples, classifies dropout mechanism (MNAR vs MAR), tests for batch effects,
